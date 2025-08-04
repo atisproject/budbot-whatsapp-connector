@@ -22,6 +22,11 @@ app.use(express.json());
 const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
 const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 
+console.log('🔧 Configurações:');
+console.log('- BUDBOT_API_URL:', BUDBOT_API_URL);
+console.log('- PORT:', PORT);
+console.log('- NODE_ENV:', process.env.NODE_ENV);
+
 // Estado do cliente WhatsApp
 let client;
 let isReady = false;
@@ -45,7 +50,9 @@ function initializeWhatsApp() {
                 '--no-first-run',
                 '--no-zygote',
                 '--single-process',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
             ]
         }
     });
@@ -53,6 +60,7 @@ function initializeWhatsApp() {
     // Evento: QR Code
     client.on('qr', (qr) => {
         console.log('📱 QR Code gerado! Escaneie com seu WhatsApp:');
+        console.log('🔗 QR Code disponível em: /qr');
         qrcode.generate(qr, { small: true });
         qrCodeData = qr;
     });
@@ -93,6 +101,8 @@ function initializeWhatsApp() {
                 timeout: 10000
             });
 
+            console.log('📡 Resposta do BudBot-IA:', response.data);
+
             // Verificar se há resposta automática
             if (response.data.auto_reply && response.data.reply_message) {
                 await message.reply(response.data.reply_message);
@@ -101,6 +111,9 @@ function initializeWhatsApp() {
 
         } catch (error) {
             console.error('❌ Erro ao processar mensagem:', error.message);
+            if (error.response) {
+                console.error('📡 Erro HTTP:', error.response.status, error.response.data);
+            }
         }
     });
 
@@ -118,7 +131,9 @@ function initializeWhatsApp() {
     });
 
     // Inicializar cliente
-    client.initialize();
+    client.initialize().catch(error => {
+        console.error('❌ Erro ao inicializar WhatsApp:', error);
+    });
 }
 
 // Rotas da API
@@ -126,9 +141,14 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'online',
         whatsapp_ready: isReady,
+        has_qr: qrCodeData !== null,
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        config: {
+            budbot_url: BUDBOT_API_URL,
+            node_env: process.env.NODE_ENV
+        }
     });
 });
 
@@ -143,18 +163,35 @@ app.get('/status', (req, res) => {
 
 app.get('/qr', (req, res) => {
     if (qrCodeData) {
-        res.json({
-            qr_code: qrCodeData,
-            message: 'Escaneie o QR Code com seu WhatsApp'
-        });
+        // Retornar página HTML simples com QR Code
+        const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>WhatsApp QR Code</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+                .qr-container { margin: 20px auto; max-width: 400px; }
+                img { max-width: 100%; border: 1px solid #ccc; }
+            </style>
+        </head>
+        <body>
+            <h1>📱 WhatsApp QR Code</h1>
+            <p>Escaneie o QR Code abaixo com seu WhatsApp:</p>
+            <div class="qr-container">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}" alt="QR Code"/>
+            </div>
+            <p><small>A página será atualizada automaticamente quando conectado.</small></p>
+            <script>
+                setTimeout(() => location.reload(), 10000);
+            </script>
+        </body>
+        </html>`;
+        res.send(html);
     } else if (isReady) {
-        res.json({
-            message: 'WhatsApp já está conectado'
-        });
+        res.send('<h1>✅ WhatsApp já está conectado!</h1><a href="/health">Ver Status</a>');
     } else {
-        res.json({
-            message: 'QR Code não disponível. Reinicie o serviço.'
-        });
+        res.send('<h1>⏳ Aguardando QR Code...</h1><script>setTimeout(() => location.reload(), 5000);</script>');
     }
 });
 
@@ -230,6 +267,22 @@ app.get('/contact/:phone', async (req, res) => {
     }
 });
 
+// Rota raiz
+app.get('/', (req, res) => {
+    res.json({
+        service: 'BudBot WhatsApp Connector',
+        version: '1.0.0',
+        status: isReady ? 'connected' : 'disconnected',
+        endpoints: {
+            health: '/health',
+            status: '/status',
+            qr: '/qr',
+            send: 'POST /send',
+            contact: '/contact/:phone'
+        }
+    });
+});
+
 // Middleware de tratamento de erros
 app.use((error, req, res, next) => {
     console.error('❌ Erro na API:', error);
@@ -243,7 +296,13 @@ app.use((error, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Servidor rodando na porta ${PORT}`);
     console.log(`📡 BudBot API URL: ${BUDBOT_API_URL}`);
-    initializeWhatsApp();
+    console.log(`🔗 Health Check: http://localhost:${PORT}/health`);
+    console.log(`📱 QR Code: http://localhost:${PORT}/qr`);
+    
+    // Aguardar um pouco antes de inicializar WhatsApp
+    setTimeout(() => {
+        initializeWhatsApp();
+    }, 2000);
 });
 
 // Tratamento de sinais
@@ -261,4 +320,14 @@ process.on('SIGTERM', async () => {
         await client.destroy();
     }
     process.exit(0);
+});
+
+// Tratamento de erros não capturados
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    process.exit(1);
 });

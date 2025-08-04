@@ -5,8 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js"
   },
   "keywords": ["whatsapp", "bot", "connector", "budbot"],
   "author": "BudBot-IA Team",
@@ -19,9 +18,6 @@
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "puppeteer": "^22.12.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
   },
   "engines": {
     "node": ">=18.0.0"

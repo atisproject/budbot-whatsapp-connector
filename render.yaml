@@ -2,10 +2,9 @@
 services:
   - type: web
     name: budbot-whatsapp-connector
-    env: node
+    env: docker
     plan: starter
-    buildCommand: npm install
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: BUDBOT_API_URL
         value: https://budbot-ia.onrender.com  # Substitua pela URL do seu BudBot-IA
