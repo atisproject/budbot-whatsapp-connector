@@ -1,147 +1,142 @@
 #!/usr/bin/env node
 /**
- * BudBot-IA WhatsApp Connector
- * Sistema Node.js para conectar com WhatsApp Web
+ * BudBot WhatsApp Connector
+ * Conecta WhatsApp Web ao sistema BudBot-IA
  */
 
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
-// Configurações
-const PORT = process.env.PORT || 10000;
-const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'https://budbot-ia.onrender.com';
-const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
-
-// Inicializar Express
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Cliente WhatsApp com configuração otimizada
-const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: "budbot-session"
-    }),
-    puppeteer: {
-        headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
-        ]
-    }
-});
+// Configurações
+const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
+const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 
-// Estado da conexão
+// Estado do cliente WhatsApp
+let client;
 let isReady = false;
 let qrCodeData = null;
 
-console.log('🚀 Iniciando BudBot-IA WhatsApp Connector...');
-
-// Eventos do cliente WhatsApp
-client.on('qr', (qr) => {
-    console.log('📱 QR Code gerado! Escaneie com seu WhatsApp:');
-    qrcode.generate(qr, { small: true });
-    qrCodeData = qr;
-});
-
-client.on('ready', () => {
-    console.log('✅ WhatsApp conectado com sucesso!');
-    isReady = true;
-    qrCodeData = null;
-});
-
-client.on('authenticated', () => {
-    console.log('🔐 WhatsApp autenticado!');
-});
-
-client.on('auth_failure', (msg) => {
-    console.error('❌ Falha na autenticação WhatsApp:', msg);
-});
-
-client.on('disconnected', (reason) => {
-    console.log('📴 WhatsApp desconectado:', reason);
-    isReady = false;
-});
-
-// Receber mensagens
-client.on('message', async (message) => {
-    try {
-        // Ignorar mensagens próprias e de grupos
-        if (message.fromMe || message.from.includes('@g.us')) {
-            return;
+// Inicializar cliente WhatsApp
+function initializeWhatsApp() {
+    console.log('🚀 Iniciando WhatsApp Connector...');
+    
+    client = new Client({
+        authStrategy: new LocalAuth({
+            name: 'budbot-session'
+        }),
+        puppeteer: {
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'
+            ]
         }
+    });
 
-        console.log('📨 Nova mensagem:', {
-            from: message.from,
-            body: message.body,
-            timestamp: new Date()
-        });
+    // Evento: QR Code
+    client.on('qr', (qr) => {
+        console.log('📱 QR Code gerado! Escaneie com seu WhatsApp:');
+        qrcode.generate(qr, { small: true });
+        qrCodeData = qr;
+    });
 
-        // Extrair número do telefone
-        const phoneNumber = message.from.replace('@c.us', '');
-        
-        // Preparar dados para enviar ao BudBot-IA
-        const messageData = {
-            phone: phoneNumber,
-            message: message.body,
-            whatsapp_message_id: message.id.id,
-            contact_name: message._data.notifyName || phoneNumber,
-            timestamp: new Date().toISOString()
-        };
+    // Evento: Cliente pronto
+    client.on('ready', () => {
+        console.log('✅ WhatsApp conectado com sucesso!');
+        isReady = true;
+        qrCodeData = null;
+    });
 
-        // Enviar para o sistema principal
-        const response = await sendToBudBot('/api/whatsapp/receive', messageData);
-        
-        if (response && response.auto_reply) {
-            // Enviar resposta automática
-            await client.sendMessage(message.from, response.reply_message);
-            console.log('🤖 Resposta automática enviada:', response.reply_message);
+    // Evento: Mensagem recebida
+    client.on('message', async (message) => {
+        try {
+            if (message.from.includes('@g.us')) {
+                // Ignorar mensagens de grupo
+                return;
+            }
+
+            const contact = await message.getContact();
+            const messageData = {
+                phone: message.from.replace('@c.us', ''),
+                message: message.body,
+                contact_name: contact.pushname || contact.name || null,
+                whatsapp_message_id: message.id.id,
+                timestamp: new Date().toISOString()
+            };
+
+            console.log(`📨 Mensagem recebida de ${messageData.phone}: ${messageData.message}`);
+
+            // Enviar para BudBot-IA
+            const response = await axios.post(`${BUDBOT_API_URL}/api/whatsapp-connector/receive`, messageData, {
+                headers: {
+                    'Authorization': `Bearer ${API_SECRET}`,
+                    'X-WhatsApp-Connector': 'budbot-connector-v1',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000
+            });
+
+            // Verificar se há resposta automática
+            if (response.data.auto_reply && response.data.reply_message) {
+                await message.reply(response.data.reply_message);
+                console.log(`🤖 Resposta automática enviada para ${messageData.phone}`);
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao processar mensagem:', error.message);
         }
+    });
 
-    } catch (error) {
-        console.error('❌ Erro ao processar mensagem:', error);
-    }
-});
+    // Evento: Cliente desconectado
+    client.on('disconnected', (reason) => {
+        console.log('⚠️ WhatsApp desconectado:', reason);
+        isReady = false;
+        qrCodeData = null;
+    });
 
-// Função para enviar dados ao BudBot-IA
-async function sendToBudBot(endpoint, data) {
-    try {
-        const response = await axios.post(`${BUDBOT_API_URL}${endpoint}`, data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_SECRET}`,
-                'X-WhatsApp-Connector': 'true'
-            },
-            timeout: 10000
-        });
-        
-        return response.data;
-    } catch (error) {
-        console.error('❌ Erro ao comunicar com BudBot-IA:', error.message);
-        return null;
-    }
+    // Evento: Erro de autenticação
+    client.on('auth_failure', (msg) => {
+        console.error('❌ Falha na autenticação:', msg);
+        isReady = false;
+    });
+
+    // Inicializar cliente
+    client.initialize();
 }
 
-// Rotas da API REST
-app.get('/status', (req, res) => {
+// Rotas da API
+app.get('/health', (req, res) => {
     res.json({
         status: 'online',
-        whatsapp_connected: isReady,
-        qr_code_available: !!qrCodeData,
+        whatsapp_ready: isReady,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/status', (req, res) => {
+    res.json({
+        connected: isReady,
+        has_qr: qrCodeData !== null,
+        uptime: process.uptime(),
         timestamp: new Date().toISOString()
     });
 });
@@ -149,28 +144,22 @@ app.get('/status', (req, res) => {
 app.get('/qr', (req, res) => {
     if (qrCodeData) {
         res.json({
-            success: true,
             qr_code: qrCodeData,
             message: 'Escaneie o QR Code com seu WhatsApp'
         });
     } else if (isReady) {
         res.json({
-            success: false,
             message: 'WhatsApp já está conectado'
         });
     } else {
         res.json({
-            success: false,
-            message: 'QR Code não disponível no momento'
+            message: 'QR Code não disponível. Reinicie o serviço.'
         });
     }
 });
 
-// Enviar mensagem via API
 app.post('/send', async (req, res) => {
     try {
-        const { phone, message } = req.body;
-
         if (!isReady) {
             return res.status(503).json({
                 success: false,
@@ -178,40 +167,39 @@ app.post('/send', async (req, res) => {
             });
         }
 
+        const { phone, message } = req.body;
+
         if (!phone || !message) {
             return res.status(400).json({
                 success: false,
-                error: 'Telefone e mensagem são obrigatórios'
+                error: 'Phone e message são obrigatórios'
             });
         }
 
-        // Formatar número para WhatsApp
+        // Formatar número
         const chatId = phone.includes('@c.us') ? phone : `${phone}@c.us`;
         
         // Enviar mensagem
         await client.sendMessage(chatId, message);
-        
-        console.log('📤 Mensagem enviada para:', phone);
-        
+
+        console.log(`📤 Mensagem enviada para ${phone}: ${message}`);
+
         res.json({
             success: true,
             message: 'Mensagem enviada com sucesso'
         });
 
     } catch (error) {
-        console.error('❌ Erro ao enviar mensagem:', error);
+        console.error('❌ Erro ao enviar mensagem:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Erro interno do servidor'
+            error: 'Erro ao enviar mensagem'
         });
     }
 });
 
-// Obter informações do contato
 app.get('/contact/:phone', async (req, res) => {
     try {
-        const { phone } = req.params;
-        
         if (!isReady) {
             return res.status(503).json({
                 success: false,
@@ -219,79 +207,58 @@ app.get('/contact/:phone', async (req, res) => {
             });
         }
 
+        const phone = req.params.phone;
         const chatId = phone.includes('@c.us') ? phone : `${phone}@c.us`;
-        const contact = await client.getContactById(chatId);
         
+        const contact = await client.getContactById(chatId);
+
         res.json({
             success: true,
             contact: {
-                name: contact.name || contact.pushname || phone,
                 phone: phone,
-                is_business: contact.isBusiness || false,
-                profile_pic: contact.profilePicThumbObj?.eurl || null
+                name: contact.pushname || contact.name,
+                is_business: contact.isBusiness,
+                profile_pic_url: await contact.getProfilePicUrl() || null
             }
         });
 
     } catch (error) {
-        console.error('❌ Erro ao obter contato:', error);
-        res.status(500).json({
+        res.status(404).json({
             success: false,
-            error: 'Erro ao obter informações do contato'
+            error: 'Contato não encontrado'
         });
     }
 });
 
-// Middleware de autenticação para rotas protegidas
-app.use('/api/*', (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({
-            success: false,
-            error: 'Token de autorização necessário'
-        });
-    }
-    
-    const token = authHeader.substring(7);
-    if (token !== API_SECRET) {
-        return res.status(403).json({
-            success: false,
-            error: 'Token inválido'
-        });
-    }
-    
-    next();
-});
-
-// Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        whatsapp_status: isReady ? 'connected' : 'disconnected'
+// Middleware de tratamento de erros
+app.use((error, req, res, next) => {
+    console.error('❌ Erro na API:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
     });
 });
 
 // Inicializar servidor
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Servidor rodando na porta ${PORT}`);
-    console.log(`📊 Status: http://localhost:${PORT}/status`);
-    console.log(`📱 QR Code: http://localhost:${PORT}/qr`);
+    console.log(`📡 BudBot API URL: ${BUDBOT_API_URL}`);
+    initializeWhatsApp();
 });
 
-// Inicializar cliente WhatsApp
-client.initialize();
-
-// Graceful shutdown
+// Tratamento de sinais
 process.on('SIGINT', async () => {
-    console.log('🛑 Encerrando aplicação...');
-    await client.destroy();
+    console.log('🛑 Encerrando WhatsApp Connector...');
+    if (client) {
+        await client.destroy();
+    }
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log('🛑 Encerrando aplicação...');
-    await client.destroy();
+    console.log('🛑 Encerrando WhatsApp Connector...');
+    if (client) {
+        await client.destroy();
+    }
     process.exit(0);
 });

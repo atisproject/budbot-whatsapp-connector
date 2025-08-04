@@ -1,22 +1,18 @@
 # Configuração para deploy do WhatsApp Connector no Render.com
-# Usa o mesmo domínio do BudBot principal com porta diferente
 services:
   - type: web
     name: budbot-whatsapp-connector
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: node
     plan: starter
-    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
-      - key: PORT
-        value: 10000
       - key: BUDBOT_API_URL
-        value: https://budbot-ia.onrender.com
+        value: https://budbot-ia.onrender.com  # Substitua pela URL do seu BudBot-IA
       - key: API_SECRET
-        value: budbot-secret-key
+        sync: false  # Definir manualmente - mesma chave do sistema principal
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium-browser
+      - key: PORT
+        value: 10000
     healthCheckPath: /health
-    autoDeploy: true
