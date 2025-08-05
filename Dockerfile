@@ -1,47 +1,64 @@
-# Dockerfile para WhatsApp Connector - Versão Corrigida
-FROM node:18-alpine
+# Dockerfile para Render.com com suporte completo ao Chromium
+FROM node:18-slim
 
-# Instalar dependências básicas
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
+# Instalar dependências do sistema para Chromium
+RUN apt-get update && apt-get install -y \
+    wget \
     ca-certificates \
-    ttf-freefont \
-    && rm -rf /var/cache/apk/*
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libc6 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libexpat1 \
+    libfontconfig1 \
+    libgbm1 \
+    libgcc1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libstdc++6 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    lsb-release \
+    xdg-utils \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
 
-# Configurar Puppeteer para usar Chromium do Alpine
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV CHROME_BIN=/usr/bin/chromium-browser
-ENV CHROME_PATH=/usr/bin/chromium-browser
-
-# Criar diretório da aplicação
+# Criar diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar package.json e instalar dependências
 COPY package*.json ./
-
-# Instalar dependências Node.js
-RUN npm install --omit=dev
+RUN npm ci --only=production
 
 # Copiar código da aplicação
 COPY . .
 
-# Criar usuário não-root para segurança
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-# Criar diretório para sessão do WhatsApp
-RUN mkdir -p /app/.wwebjs_auth && \
-    chown -R nodejs:nodejs /app
-
-# Mudar para usuário não-root
-USER nodejs
+# Definir variáveis de ambiente
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Expor porta
-EXPOSE 3000
+EXPOSE 10000
 
-# Comando para iniciar a aplicação
+# Comando de inicialização
 CMD ["npm", "start"]

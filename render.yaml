@@ -1,11 +1,10 @@
-# BudBot WhatsApp Connector v2.0 - Node.js Nativo
+# BudBot WhatsApp Connector v3.1 - Chromium Fix
 services:
   - type: web
     name: budbot-whatsapp-connector
-    env: node
+    env: docker
     plan: starter
-    buildCommand: npm install
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: BUDBOT_API_URL
         value: https://budbot-ia.onrender.com
@@ -15,4 +14,10 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: RENDER
+        value: true
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
     healthCheckPath: /health
