@@ -1,17 +1,22 @@
-# Configuração otimizada para deploy do WhatsApp Connector no Render.com
+# Configuração Node.js nativo para Render.com (sem Docker)
 services:
   - type: web
     name: budbot-whatsapp-connector
-    env: docker
+    env: node
     plan: starter
-    dockerfilePath: ./Dockerfile
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: BUDBOT_API_URL
-        value: https://budbot-ia.onrender.com  # Substitua pela URL do seu BudBot-IA
+        value: https://budbot-ia.onrender.com
       - key: API_SECRET
-        sync: false  # Definir manualmente - mesma chave do sistema principal
+        sync: false
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /opt/render/project/.render/chrome/opt/google/chrome/google-chrome
     healthCheckPath: /health
