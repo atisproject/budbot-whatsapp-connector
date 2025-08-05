@@ -1,4 +1,4 @@
-# BudBot WhatsApp Connector v4.2 - Memory Optimized (sem --expose-gc)
+# Render Stable Config
 services:
   - type: web
     name: budbot-whatsapp-connector
@@ -14,14 +14,4 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: RENDER
-        value: true
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium
-      - key: PUPPETEER_TIMEOUT
-        value: 0
-      - key: WWEB_SESSION_PATH
-        value: /data/wweb-session
     healthCheckPath: /health
