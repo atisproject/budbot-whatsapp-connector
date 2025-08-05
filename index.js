@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * BudBot WhatsApp Connector v4.2
- * Memory Optimized + Target Closed Fix
+ * Memory Optimized - Render.com Compatible (sem --expose-gc)
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -26,12 +26,12 @@ const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
 const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 const SESSION_PATH = process.env.WWEB_SESSION_PATH || '/data/wweb-session';
 
-console.log('🚀 BudBot WhatsApp Connector v4.2 - Memory Optimized');
+console.log('🚀 BudBot WhatsApp Connector v4.2 - Memory Optimized (Render Compatible)');
 console.log('- BUDBOT_API_URL:', BUDBOT_API_URL);
 console.log('- PORT:', PORT);
 console.log('- NODE_ENV:', process.env.NODE_ENV);
 console.log('- SESSION_PATH:', SESSION_PATH);
-console.log('- MEMORY LIMIT:', process.env.NODE_OPTIONS || '256MB');
+console.log('- MEMORY LIMIT: 256MB (sem expose-gc)');
 
 // Estado do cliente WhatsApp
 let client = null;
@@ -44,13 +44,22 @@ let lastErrorTime = 0;
 let consecutiveErrors = 0;
 let isAuthenticated = false;
 
-// Garbage collection forçado
-if (global.gc) {
-  setInterval(() => {
-    global.gc();
-    console.log('🗑️ GC manual executado');
-  }, 300000); // A cada 5 minutos
-}
+// Garbage collection automático (sem --expose-gc flag)
+const performGC = () => {
+  if (global.gc) {
+    try {
+      global.gc();
+      console.log('🗑️ GC automático executado');
+    } catch (e) {
+      console.log('⚠️ GC não disponível:', e.message);
+    }
+  } else {
+    console.log('ℹ️ GC manual não disponível (rodando sem --expose-gc)');
+  }
+};
+
+// GC periódico (funciona apenas se --expose-gc estiver disponível)
+setInterval(performGC, 300000); // A cada 5 minutos
 
 // Função para aguardar
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -227,11 +236,8 @@ async function ultraSafeCleanupClient() {
       }
     }
     
-    // Forçar garbage collection
-    if (global.gc) {
-      global.gc();
-      console.log('🗑️ Garbage collection forçado');
-    }
+    // Tentar garbage collection
+    performGC();
     
   } catch (error) {
     console.log('⚠️ Warning cleanup:', error.message);
@@ -273,7 +279,7 @@ async function initializeWhatsApp() {
   try {
     const sessionPath = ensureSessionDirectoryExists();
     
-    // Cleanup + forçar GC
+    // Cleanup + tentar GC
     await ultraSafeCleanupClient();
     await sleep(8000); // Aguardar liberação de memória
     
@@ -296,7 +302,7 @@ async function initializeWhatsApp() {
 
     setupWhatsAppEvents();
     
-    console.log('🔧 Inicializando com otimização de memória...');
+    console.log('🔧 Inicializando com otimização de memória (sem expose-gc)...');
     logMemoryUsage();
     
     // Inicialização sem timeout externo
@@ -340,7 +346,7 @@ function setupWhatsAppEvents() {
   if (!client) return;
 
   client.on('qr', async (qr) => {
-    console.log('📱 QR Code gerado (memória otimizada)!');
+    console.log('📱 QR Code gerado (memória otimizada sem expose-gc)!');
     logMemoryUsage();
     
     qrcodeTerminal.generate(qr, { small: true });
@@ -376,7 +382,7 @@ function setupWhatsAppEvents() {
   });
 
   client.on('ready', () => {
-    console.log('✅ WhatsApp pronto (otimização de memória ativa)!');
+    console.log('✅ WhatsApp pronto (otimização de memória ativa, sem expose-gc)!');
     logMemoryUsage();
     isReady = true;
     isAuthenticated = true;
@@ -481,7 +487,7 @@ app.get('/health', (req, res) => {
 
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '4.2.0-memory-optimized',
+    version: '4.2.0-memory-optimized-render-compatible',
     status: 'online',
     whatsapp_ready: isReady,
     is_authenticated: isAuthenticated,
@@ -503,10 +509,11 @@ app.get('/health', (req, res) => {
       'memory-optimized',
       'single-process',
       'aggressive-cache-discard',
-      'gc-forced',
       'heap-limit-256mb',
-      'features-disabled'
-    ]
+      'features-disabled',
+      'render-compatible'
+    ],
+    gc_available: !!global.gc
   });
 });
 
@@ -522,6 +529,7 @@ app.get('/status', (req, res) => {
     initializing: isInitializing,
     memory_optimized: true,
     memory_mb: Math.round(used.rss / 1024 / 1024),
+    render_compatible: true,
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -566,7 +574,7 @@ app.get('/qr', (req, res) => {
                 -webkit-text-fill-color: transparent;
             }
             .version {
-                background: linear-gradient(135deg, #ff6b35, #f7931e);
+                background: linear-gradient(135deg, #28a745, #20c956);
                 color: white;
                 padding: 12px 24px;
                 border-radius: 20px;
@@ -590,8 +598,8 @@ app.get('/qr', (req, res) => {
                 background: white;
                 padding: 15px;
             }
-            .memory-info {
-                background: linear-gradient(135deg, #ff6b35, #f7931e);
+            .compatible-info {
+                background: linear-gradient(135deg, #28a745, #20c956);
                 color: white;
                 padding: 20px;
                 border-radius: 15px;
@@ -608,20 +616,20 @@ app.get('/qr', (req, res) => {
     <body>
         <div class="container">
             <h1 class="title">WhatsApp QR</h1>
-            <div class="version">v4.2 Memory Optimized</div>
+            <div class="version">v4.2 Render Compatible</div>
             
             <div class="qr-container">
                 <img src="${qrCodeImage}" alt="QR Code WhatsApp" />
             </div>
             
-            <div class="memory-info">
-                🧠 OTIMIZAÇÃO DE MEMÓRIA ATIVA<br>
-                Processo único • Limite 256MB • GC automático
+            <div class="compatible-info">
+                ✅ RENDER.COM COMPATIBLE<br>
+                Sem --expose-gc • Otimização automática • 256MB limit
             </div>
             
             <div class="footer">
                 <strong>BudBot-IA WhatsApp Connector v4.2</strong><br>
-                Otimizado para baixo consumo de memória<br>
+                Compatível com Render.com<br>
                 <small>Atualização em 30s</small>
             </div>
         </div>
@@ -635,7 +643,7 @@ app.get('/qr', (req, res) => {
         <div style="background: white; padding: 60px; border-radius: 20px;">
             <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
             <h1 style="color: #25D366; margin-bottom: 20px; font-size: 2em;">Conectado!</h1>
-            <div style="background: #ff6b35; color: white; padding: 15px 30px; border-radius: 15px; margin: 20px 0;">Memory Optimized v4.2</div>
+            <div style="background: #28a745; color: white; padding: 15px 30px; border-radius: 15px; margin: 20px 0;">Render Compatible v4.2</div>
         </div>
     </div>`);
     
@@ -644,12 +652,12 @@ app.get('/qr', (req, res) => {
     res.send(`
     <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #6c757d, #495057); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
         <div style="background: white; padding: 60px; border-radius: 20px;">
-            <div style="font-size: 4em; margin-bottom: 20px;">🧠</div>
+            <div style="font-size: 4em; margin-bottom: 20px;">⚙️</div>
             <h1 style="color: #6c757d; margin-bottom: 20px; font-size: 2em;">Carregando v4.2...</h1>
-            <div style="background: #ff6b35; color: white; padding: 12px 24px; border-radius: 15px; margin: 15px 0;">Memory Optimized</div>
+            <div style="background: #28a745; color: white; padding: 12px 24px; border-radius: 15px; margin: 15px 0;">Render Compatible</div>
             <p style="font-size: 1.1em; margin: 15px 0;">Tentativa: ${initializationAttempts}</p>
             <p style="color: #666;">Memória: ${Math.round(used.rss / 1024 / 1024)}MB</p>
-            <p style="font-size: 1em; margin: 20px 0;">${isInitializing ? '🔄 Otimizando...' : '⏳ Aguardando...'}</p>
+            <p style="font-size: 1em; margin: 20px 0;">${isInitializing ? '🔄 Sem expose-gc' : '⏳ Aguardando...'}</p>
         </div>
         <script>setTimeout(() => location.reload(), 25000);</script>
     </div>`);
@@ -680,7 +688,7 @@ app.post('/send', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Enviado',
-      memory_optimized: true,
+      render_compatible: true,
       timestamp: new Date().toISOString()
     });
 
@@ -696,7 +704,7 @@ app.post('/send', async (req, res) => {
 
 app.post('/restart', async (req, res) => {
   try {
-    console.log('🔄 Restart (memory optimized)...');
+    console.log('🔄 Restart (render compatible)...');
     await ultraSafeCleanupClient();
     isReady = false;
     qrCodeData = null;
@@ -704,7 +712,7 @@ app.post('/restart', async (req, res) => {
     isInitializing = false;
     consecutiveErrors = 0;
     setTimeout(initializeWhatsApp, 20000);
-    res.json({ success: true, message: 'Restart com otimização' });
+    res.json({ success: true, message: 'Restart render compatible' });
   } catch (error) {
     res.json({ success: true, message: 'Restart iniciado' });
   }
@@ -714,19 +722,21 @@ app.get('/', (req, res) => {
   const used = process.memoryUsage();
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '4.2.0-memory-optimized',
+    version: '4.2.0-render-compatible',
     status: isReady ? 'connected' : 'initializing',
+    render_compatible: true,
     memory_optimized: true,
     memory_usage_mb: Math.round(used.rss / 1024 / 1024),
     attempts: initializationAttempts,
     consecutive_errors: consecutiveErrors,
+    gc_available: !!global.gc,
     features: [
       'memory-optimized',
       'single-process',
-      'gc-forced',
       'heap-limit-256mb',
       'persistent-session',
-      'visual-qr'
+      'visual-qr',
+      'render-compatible'
     ]
   });
 });
@@ -734,15 +744,16 @@ app.get('/', (req, res) => {
 // Inicializar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Servidor na porta ${PORT}`);
-  console.log(`🧠 Otimização de memória ativa!`);
+  console.log(`✅ Render.com compatível (sem expose-gc)!`);
   console.log(`📏 Limite Node.js: 256MB`);
   console.log(`💾 Sessão persistente habilitada`);
   console.log(`🎨 QR Code visual em /qr`);
+  console.log(`🗑️ GC disponível: ${!!global.gc}`);
   
   logMemoryUsage();
   
   setTimeout(() => {
-    console.log('🚀 Iniciando com otimização de memória...');
+    console.log('🚀 Iniciando compatível com Render.com...');
     initializeWhatsApp();
   }, 20000);
 });
@@ -765,7 +776,7 @@ process.on('warning', (warning) => {
   if (warning.name === 'MaxListenersExceededWarning' || warning.message.includes('memory')) {
     console.warn('⚠️ Warning memória:', warning.message);
     logMemoryUsage();
-    if (global.gc) global.gc();
+    performGC(); // Tentar GC se disponível
   }
 });
 

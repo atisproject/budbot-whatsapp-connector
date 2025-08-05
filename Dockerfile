@@ -1,4 +1,4 @@
-# Dockerfile para Render.com - Memory Optimized
+# Dockerfile para Render.com - Memory Optimized (sem --expose-gc)
 FROM node:18-slim
 
 # Instalar apenas dependências essenciais (reduzir overhead)
@@ -32,11 +32,11 @@ RUN npm install --omit=dev --no-cache
 # Copiar código da aplicação
 COPY . .
 
-# Definir variáveis de ambiente para otimização de memória
+# Definir variáveis de ambiente para otimização de memória (SEM --expose-gc)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV WWEB_SESSION_PATH=/data/wweb-session
-ENV NODE_OPTIONS="--max-old-space-size=256 --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=256"
 ENV PUPPETEER_TIMEOUT=0
 
 # Expor porta
