@@ -1,4 +1,4 @@
-# Dockerfile para Render.com - NPM Fix
+# Dockerfile para Render.com - Persistent Session
 FROM node:18-slim
 
 # Instalar dependências do sistema para Chromium
@@ -46,10 +46,12 @@ RUN apt-get update && apt-get install -y \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Copiar package.json APENAS (sem package-lock.json)
-COPY package.json ./
+# Criar diretório persistente para sessões WhatsApp (Render.com /data é persistente)
+RUN mkdir -p /data/wweb-session && \
+    chmod -R 777 /data/wweb-session
 
-# Instalar dependências com npm install (não npm ci)
+# Copiar package.json e instalar dependências
+COPY package.json ./
 RUN npm install --omit=dev
 
 # Copiar código da aplicação
@@ -58,6 +60,7 @@ COPY . .
 # Definir variáveis de ambiente
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV WWEB_SESSION_PATH=/data/wweb-session
 
 # Expor porta
 EXPOSE 10000
