@@ -1,4 +1,4 @@
-# Dockerfile para WhatsApp Connector
+# Dockerfile para WhatsApp Connector - CORRIGIDO
 FROM node:18-alpine
 
 # Instalar dependências do sistema para Puppeteer
@@ -18,11 +18,11 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 # Criar diretório da aplicação
 WORKDIR /app
 
-# Copiar package.json e package-lock.json
-COPY package*.json ./
+# Copiar package.json
+COPY package.json ./
 
-# Instalar dependências
-RUN npm ci --only=production
+# Instalar dependências usando npm install (não npm ci)
+RUN npm install --only=production
 
 # Copiar código da aplicação
 COPY . .

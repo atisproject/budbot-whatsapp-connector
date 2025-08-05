@@ -170,18 +170,28 @@ app.get('/qr', (req, res) => {
         <head>
             <title>WhatsApp QR Code</title>
             <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-                .qr-container { margin: 20px auto; max-width: 400px; }
-                img { max-width: 100%; border: 1px solid #ccc; }
+                body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f5f5f5; }
+                .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .qr-container { margin: 20px auto; }
+                img { max-width: 100%; border: 1px solid #ddd; border-radius: 8px; }
+                .status { color: #28a745; font-weight: bold; }
+                .instructions { color: #666; margin: 20px 0; }
             </style>
         </head>
         <body>
-            <h1>📱 WhatsApp QR Code</h1>
-            <p>Escaneie o QR Code abaixo com seu WhatsApp:</p>
-            <div class="qr-container">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}" alt="QR Code"/>
+            <div class="container">
+                <h1>📱 WhatsApp QR Code</h1>
+                <div class="status">🔗 Conectando...</div>
+                <div class="instructions">
+                    <p>1. Abra o WhatsApp no seu celular</p>
+                    <p>2. Vá em Menu → Dispositivos conectados</p>
+                    <p>3. Escaneie o QR Code abaixo</p>
+                </div>
+                <div class="qr-container">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}" alt="QR Code"/>
+                </div>
+                <p><small>A página será atualizada automaticamente quando conectado.</small></p>
             </div>
-            <p><small>A página será atualizada automaticamente quando conectado.</small></p>
             <script>
                 setTimeout(() => location.reload(), 10000);
             </script>
@@ -189,9 +199,19 @@ app.get('/qr', (req, res) => {
         </html>`;
         res.send(html);
     } else if (isReady) {
-        res.send('<h1>✅ WhatsApp já está conectado!</h1><a href="/health">Ver Status</a>');
+        res.send(`
+        <div style="text-align: center; padding: 50px; font-family: Arial;">
+            <h1 style="color: #28a745;">✅ WhatsApp Conectado!</h1>
+            <p>O connector está funcionando corretamente.</p>
+            <a href="/health" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver Status Detalhado</a>
+        </div>`);
     } else {
-        res.send('<h1>⏳ Aguardando QR Code...</h1><script>setTimeout(() => location.reload(), 5000);</script>');
+        res.send(`
+        <div style="text-align: center; padding: 50px; font-family: Arial;">
+            <h1>⏳ Aguardando QR Code...</h1>
+            <p>O sistema está inicializando. Aguarde alguns segundos.</p>
+            <script>setTimeout(() => location.reload(), 5000);</script>
+        </div>`);
     }
 });
 
