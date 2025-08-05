@@ -1,47 +1,42 @@
-# Dockerfile para WhatsApp Connector - Versão Corrigida
+# Dockerfile para WhatsApp Connector
 FROM node:18-alpine
 
-# Instalar dependências básicas
+# Instalar dependências do sistema para Puppeteer
 RUN apk add --no-cache \
     chromium \
     nss \
     freetype \
+    freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont \
-    && rm -rf /var/cache/apk/*
+    ttf-freefont
 
-# Configurar Puppeteer para usar Chromium do Alpine
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV CHROME_BIN=/usr/bin/chromium-browser
-ENV CHROME_PATH=/usr/bin/chromium-browser
+# Configurar Puppeteer para usar Chromium instalado
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Criar diretório da aplicação
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar package.json e package-lock.json
 COPY package*.json ./
 
-# Instalar dependências Node.js
-RUN npm install --omit=dev
+# Instalar dependências
+RUN npm ci --only=production
 
 # Copiar código da aplicação
 COPY . .
 
-# Criar usuário não-root para segurança
+# Criar usuário não-root
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+    adduser -S budbot -u 1001
 
-# Criar diretório para sessão do WhatsApp
-RUN mkdir -p /app/.wwebjs_auth && \
-    chown -R nodejs:nodejs /app
-
-# Mudar para usuário não-root
-USER nodejs
+# Alterar proprietário dos arquivos
+RUN chown -R budbot:nodejs /app
+USER budbot
 
 # Expor porta
 EXPOSE 3000
 
-# Comando para iniciar a aplicação
+# Comando de inicialização
 CMD ["npm", "start"]
