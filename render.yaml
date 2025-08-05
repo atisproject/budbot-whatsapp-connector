@@ -1,4 +1,4 @@
-# Configuração para deploy do WhatsApp Connector no Render.com
+# Configuração otimizada para deploy do WhatsApp Connector no Render.com
 services:
   - type: web
     name: budbot-whatsapp-connector
