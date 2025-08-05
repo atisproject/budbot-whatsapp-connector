@@ -1,12 +1,11 @@
 {
   "name": "budbot-whatsapp-connector",
-  "version": "1.0.0",
-  "description": "WhatsApp Web Connector para BudBot-IA",
+  "version": "2.0.0",
+  "description": "WhatsApp Web Connector para BudBot-IA - Versão Otimizada",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "postinstall": "node setup-chrome.js"
+    "dev": "nodemon index.js"
   },
   "keywords": ["whatsapp", "bot", "connector", "budbot"],
   "author": "BudBot-IA Team",
@@ -17,8 +16,7 @@
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "axios": "^1.7.2",
-    "dotenv": "^16.4.5",
-    "puppeteer": "^22.12.1"
+    "dotenv": "^16.4.5"
   },
   "engines": {
     "node": ">=18.0.0"

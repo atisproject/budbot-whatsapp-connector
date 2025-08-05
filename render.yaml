@@ -1,4 +1,4 @@
-# Configuração Node.js nativo para Render.com (sem Docker)
+# BudBot WhatsApp Connector v2.0 - Node.js Nativo
 services:
   - type: web
     name: budbot-whatsapp-connector
@@ -15,8 +15,4 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /opt/render/project/.render/chrome/opt/google/chrome/google-chrome
     healthCheckPath: /health

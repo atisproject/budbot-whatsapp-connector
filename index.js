@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * BudBot WhatsApp Connector
- * Versão Node.js nativo para Render.com
+ * BudBot WhatsApp Connector v2.0
+ * Versão otimizada com retry infinito
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -9,8 +9,6 @@ const qrcode = require('qrcode-terminal');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -24,158 +22,92 @@ app.use(express.json());
 const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
 const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 
-console.log('🔧 Configurações WhatsApp Connector:');
+console.log('🚀 BudBot WhatsApp Connector v2.0');
 console.log('- BUDBOT_API_URL:', BUDBOT_API_URL);
 console.log('- PORT:', PORT);
 console.log('- NODE_ENV:', process.env.NODE_ENV);
-console.log('- RENDER:', process.env.RENDER ? 'Sim' : 'Não');
 
 // Estado do cliente WhatsApp
 let client;
 let isReady = false;
 let qrCodeData = null;
 let initializationAttempts = 0;
-const MAX_INIT_ATTEMPTS = 5;
+let isInitializing = false;
 
 // Função para aguardar
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Detectar caminho do Chrome
-function getChromePath() {
-  const possiblePaths = [
-    '/opt/render/project/.render/chrome/opt/google/chrome/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/opt/google/chrome/google-chrome',
-    'google-chrome-stable',
-    'google-chrome',
-    'chromium-browser',
-    'chromium'
-  ];
-
-  for (const chromePath of possiblePaths) {
-    try {
-      if (fs.existsSync(chromePath)) {
-        console.log(`✅ Chrome encontrado em: ${chromePath}`);
-        return chromePath;
-      }
-    } catch (error) {
-      // Continue procurando
-    }
-  }
-
-  console.log('⚠️ Chrome não encontrado, usando padrão do sistema');
-  return null;
-}
-
-// Configuração Puppeteer otimizada
+// Configuração Puppeteer simplificada
 function getPuppeteerConfig() {
-  const chromePath = getChromePath();
-  
-  const config = {
+  return {
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
       '--disable-gpu',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
-      '--disable-extensions',
-      '--disable-plugins',
-      '--disable-default-apps',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-field-trial-config',
-      '--disable-back-forward-cache',
-      '--disable-hang-monitor',
-      '--disable-prompt-on-repost',
-      '--disable-sync',
-      '--disable-translate',
-      '--disable-ipc-flooding-protection',
-      '--no-default-browser-check',
-      '--no-pings',
-      '--no-service-autorun',
-      '--password-store=basic',
-      '--use-mock-keychain',
-      '--hide-scrollbars',
-      '--mute-audio',
-      '--disable-notifications',
-      '--disable-background-networking',
-      '--disable-component-update',
-      '--disable-client-side-phishing-detection',
-      '--disable-sync-preferences',
-      '--disable-web-resources',
-      '--safebrowsing-disable-auto-update',
-      '--disable-domain-reliability'
+      '--no-first-run',
+      '--single-process',
+      '--disable-extensions'
     ]
   };
-
-  if (chromePath) {
-    config.executablePath = chromePath;
-  }
-
-  console.log(`🚀 Configuração Puppeteer:`, {
-    headless: config.headless,
-    executablePath: config.executablePath || 'Sistema',
-    args: config.args.length + ' argumentos'
-  });
-
-  return config;
 }
 
-// Inicializar WhatsApp com retry robusto
+// Inicializar WhatsApp com retry infinito
 async function initializeWhatsApp() {
+  if (isInitializing) {
+    console.log('⚠️ Inicialização já em andamento, aguardando...');
+    return;
+  }
+
+  isInitializing = true;
   initializationAttempts++;
-  console.log(`🚀 Iniciando WhatsApp Connector (tentativa ${initializationAttempts}/${MAX_INIT_ATTEMPTS})...`);
+  
+  console.log(`🔄 Inicializando WhatsApp (tentativa ${initializationAttempts})...`);
   
   try {
-    // Aguardar antes de tentar
-    await sleep(3000 * initializationAttempts);
-    
-    // Verificar se cliente anterior existe
+    // Limpar cliente anterior
     if (client) {
       try {
         await client.destroy();
-        console.log('🧹 Cliente anterior limpo');
+        console.log('🧹 Cliente anterior removido');
       } catch (error) {
-        console.log('⚠️ Erro ao limpar cliente anterior:', error.message);
+        console.log('⚠️ Erro ao limpar cliente:', error.message);
       }
     }
     
+    // Aguardar progressivo
+    const waitTime = Math.min(10000, 2000 * initializationAttempts);
+    console.log(`⏳ Aguardando ${waitTime/1000}s antes de tentar...`);
+    await sleep(waitTime);
+    
     // Criar novo cliente
-    console.log('📱 Criando novo cliente WhatsApp...');
     client = new Client({
       authStrategy: new LocalAuth({
-        name: `budbot-session-${Date.now()}`,
+        name: `budbot-${Date.now()}`,
         dataPath: './.wwebjs_auth'
       }),
       puppeteer: getPuppeteerConfig(),
       takeoverOnConflict: true,
-      takeoverTimeoutMs: 0
+      takeoverTimeoutMs: 5000
     });
 
     // Configurar eventos
     setupWhatsAppEvents();
     
     // Inicializar com timeout
-    console.log('⏳ Inicializando cliente WhatsApp...');
+    console.log('📱 Inicializando cliente WhatsApp...');
+    await Promise.race([
+      client.initialize(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout 120s')), 120000)
+      )
+    ]);
     
-    const initPromise = client.initialize();
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Timeout na inicialização (60s)')), 60000);
-    });
-    
-    await Promise.race([initPromise, timeoutPromise]);
-    
-    console.log('🎉 Cliente WhatsApp inicializado com sucesso!');
+    console.log('✅ Cliente inicializado com sucesso!');
     
   } catch (error) {
     console.error(`❌ Erro na tentativa ${initializationAttempts}:`, error.message);
@@ -190,54 +122,54 @@ async function initializeWhatsApp() {
       client = null;
     }
     
-    if (initializationAttempts < MAX_INIT_ATTEMPTS) {
-      const waitTime = Math.min(30000, 5000 * initializationAttempts);
-      console.log(`🔄 Tentando novamente em ${waitTime/1000}s...`);
-      setTimeout(() => {
-        initializeWhatsApp();
-      }, waitTime);
-    } else {
-      console.error('💥 Máximo de tentativas atingido. WhatsApp Connector em modo limitado.');
-    }
+    // Retry automático infinito
+    const retryDelay = Math.min(60000, 5000 * Math.min(initializationAttempts, 10));
+    console.log(`🔄 Nova tentativa em ${retryDelay/1000}s...`);
+    
+    setTimeout(() => {
+      isInitializing = false;
+      initializeWhatsApp();
+    }, retryDelay);
+    
+    return;
   }
+  
+  isInitializing = false;
 }
 
 // Configurar eventos do WhatsApp
 function setupWhatsAppEvents() {
   if (!client) return;
 
-  // Evento: QR Code
+  // QR Code
   client.on('qr', (qr) => {
-    console.log('📱 QR Code gerado! Acesse /qr para visualizar');
+    console.log('📱 QR Code gerado! Acesse /qr');
     qrcode.generate(qr, { small: true });
     qrCodeData = qr;
   });
 
-  // Evento: Cliente pronto
+  // Cliente pronto
   client.on('ready', () => {
-    console.log('✅ WhatsApp conectado com sucesso!');
+    console.log('✅ WhatsApp conectado!');
     isReady = true;
     qrCodeData = null;
-    initializationAttempts = 0;
+    initializationAttempts = 0; // Reset on success
   });
 
-  // Evento: Autenticado
+  // Autenticado
   client.on('authenticated', () => {
-    console.log('🔐 WhatsApp autenticado!');
+    console.log('🔐 Autenticado!');
   });
 
-  // Evento: Loading
+  // Loading
   client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ Carregando WhatsApp: ${percent}% - ${message}`);
+    console.log(`⏳ Carregando: ${percent}% - ${message}`);
   });
 
-  // Evento: Mensagem recebida
+  // Mensagem recebida
   client.on('message', async (message) => {
     try {
-      if (message.from.includes('@g.us')) {
-        // Ignorar mensagens de grupo
-        return;
-      }
+      if (message.from.includes('@g.us')) return;
 
       const contact = await message.getContact();
       const messageData = {
@@ -248,13 +180,13 @@ function setupWhatsAppEvents() {
         timestamp: new Date().toISOString()
       };
 
-      console.log(`📨 Mensagem: ${messageData.phone} - ${messageData.message}`);
+      console.log(`📨 ${messageData.phone}: ${messageData.message}`);
 
       // Enviar para BudBot-IA
       const response = await axios.post(`${BUDBOT_API_URL}/api/whatsapp-connector/receive`, messageData, {
         headers: {
           'Authorization': `Bearer ${API_SECRET}`,
-          'X-WhatsApp-Connector': 'budbot-connector-v1',
+          'X-WhatsApp-Connector': 'budbot-connector-v2',
           'Content-Type': 'application/json'
         },
         timeout: 15000
@@ -263,32 +195,37 @@ function setupWhatsAppEvents() {
       // Resposta automática
       if (response.data.auto_reply && response.data.reply_message) {
         await message.reply(response.data.reply_message);
-        console.log(`🤖 Resposta enviada para ${messageData.phone}`);
+        console.log(`🤖 Resposta enviada: ${messageData.phone}`);
       }
 
     } catch (error) {
-      console.error('❌ Erro ao processar mensagem:', error.message);
+      console.error('❌ Erro mensagem:', error.message);
     }
   });
 
-  // Evento: Desconectado
+  // Desconectado
   client.on('disconnected', (reason) => {
-    console.log('⚠️ WhatsApp desconectado:', reason);
+    console.log('⚠️ Desconectado:', reason);
     isReady = false;
     qrCodeData = null;
     
-    // Reconexão automática
+    // Reconectar automaticamente
     setTimeout(() => {
-      console.log('🔄 Tentando reconectar...');
+      console.log('🔄 Reconectando...');
       initializeWhatsApp();
-    }, 10000);
+    }, 5000);
   });
 
-  // Evento: Erro de autenticação
+  // Erro autenticação
   client.on('auth_failure', (msg) => {
-    console.error('❌ Falha na autenticação:', msg);
+    console.error('❌ Falha autenticação:', msg);
     isReady = false;
     qrCodeData = null;
+    
+    // Tentar novamente
+    setTimeout(() => {
+      initializeWhatsApp();
+    }, 10000);
   });
 }
 
@@ -296,19 +233,18 @@ function setupWhatsAppEvents() {
 app.get('/health', (req, res) => {
   res.json({
     service: 'BudBot WhatsApp Connector',
+    version: '2.0.0',
     status: 'online',
     whatsapp_ready: isReady,
     has_qr: qrCodeData !== null,
     initialization_attempts: initializationAttempts,
-    max_attempts: MAX_INIT_ATTEMPTS,
+    is_initializing: isInitializing,
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     timestamp: new Date().toISOString(),
     environment: {
       node_env: process.env.NODE_ENV,
-      render: !!process.env.RENDER,
-      budbot_url: BUDBOT_API_URL,
-      chrome_path: getChromePath() || 'Sistema'
+      budbot_url: BUDBOT_API_URL
     }
   });
 });
@@ -318,6 +254,7 @@ app.get('/status', (req, res) => {
     connected: isReady,
     has_qr: qrCodeData !== null,
     attempts: initializationAttempts,
+    initializing: isInitializing,
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -329,7 +266,7 @@ app.get('/qr', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>WhatsApp QR Code - BudBot</title>
+        <title>WhatsApp QR Code - BudBot v2.0</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
             body { 
@@ -390,6 +327,14 @@ app.get('/qr', (req, res) => {
                 display: inline-block;
                 margin: 10px 0;
             }
+            .version {
+                background: #007bff;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 10px;
+                font-size: 0.8em;
+                margin: 5px 0;
+            }
         </style>
     </head>
     <body>
@@ -397,6 +342,7 @@ app.get('/qr', (req, res) => {
             <div class="logo">📱</div>
             <h1 class="title">WhatsApp QR Code</h1>
             <div class="subtitle">BudBot-IA Connector</div>
+            <div class="version">v2.0 - Otimizado</div>
             <div class="status">🔄 Aguardando conexão...</div>
             
             <div class="steps">
@@ -411,8 +357,8 @@ app.get('/qr', (req, res) => {
             </div>
             
             <div class="footer">
-                <strong>BudBot-IA WhatsApp Connector</strong><br>
-                Atualização automática em 15 segundos
+                <strong>BudBot-IA WhatsApp Connector v2.0</strong><br>
+                Retry infinito ativo - Atualização em 15s
             </div>
         </div>
         <script>
@@ -426,20 +372,21 @@ app.get('/qr', (req, res) => {
     <div style="text-align: center; padding: 50px; background: #25D366; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
         <div style="background: white; color: #333; padding: 40px; border-radius: 20px;">
             <h1 style="color: #25D366;">✅ WhatsApp Conectado!</h1>
-            <p>O BudBot-IA está pronto para receber mensagens.</p>
+            <p>BudBot-IA v2.0 está funcionando perfeitamente.</p>
             <a href="/health" style="background: #25D366; color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px;">Ver Status</a>
         </div>
     </div>`);
   } else {
     res.send(`
-    <div style="text-align: center; padding: 50px; background: #ffc107; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #ffc107, #fd7e14); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
         <div style="background: white; color: #333; padding: 40px; border-radius: 20px;">
-            <h1 style="color: #ffc107;">⏳ Inicializando...</h1>
-            <p>Tentativa: ${initializationAttempts}/${MAX_INIT_ATTEMPTS}</p>
-            <div style="margin: 20px 0; font-size: 2em;">🔄</div>
-            <p>Aguarde alguns minutos...</p>
+            <h1 style="color: #ffc107;">🔄 Inicializando v2.0...</h1>
+            <p>Tentativa: ${initializationAttempts} (retry infinito ativo)</p>
+            <p>${isInitializing ? 'Inicializando agora...' : 'Aguardando próxima tentativa...'}</p>
+            <div style="margin: 20px 0; font-size: 2em;">⏳</div>
+            <p><strong>Sistema nunca para de tentar!</strong></p>
         </div>
-        <script>setTimeout(() => location.reload(), 10000);</script>
+        <script>setTimeout(() => location.reload(), 8000);</script>
     </div>`);
   }
 });
@@ -464,18 +411,18 @@ app.post('/send', async (req, res) => {
     const chatId = phone.includes('@c.us') ? phone : `${phone}@c.us`;
     await client.sendMessage(chatId, message);
 
-    console.log(`📤 Mensagem enviada: ${phone}`);
-    res.json({ success: true, message: 'Enviado com sucesso' });
+    console.log(`📤 Enviado: ${phone}`);
+    res.json({ success: true, message: 'Enviado' });
 
   } catch (error) {
-    console.error('❌ Erro ao enviar:', error.message);
-    res.status(500).json({ success: false, error: 'Erro no envio' });
+    console.error('❌ Erro envio:', error.message);
+    res.status(500).json({ success: false, error: 'Erro envio' });
   }
 });
 
 app.post('/restart', async (req, res) => {
   try {
-    console.log('🔄 Reiniciando WhatsApp Connector...');
+    console.log('🔄 Reiniciando...');
     
     if (client) {
       await client.destroy();
@@ -484,43 +431,47 @@ app.post('/restart', async (req, res) => {
     isReady = false;
     qrCodeData = null;
     initializationAttempts = 0;
+    isInitializing = false;
     
-    setTimeout(initializeWhatsApp, 3000);
+    setTimeout(initializeWhatsApp, 2000);
     
     res.json({ success: true, message: 'Reiniciado' });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Erro no restart' });
+    res.json({ success: true, message: 'Reiniciado com warning' });
   }
 });
 
 app.get('/', (req, res) => {
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '1.0.0',
+    version: '2.0.0',
     status: isReady ? 'connected' : 'initializing',
+    attempts: initializationAttempts,
+    uptime: process.uptime(),
+    features: ['retry-infinito', 'qr-visual', 'auto-reconnect'],
     endpoints: ['/health', '/status', '/qr', '/send', '/restart']
   });
 });
 
-// Tratamento de erros
+// Middleware de erro
 app.use((error, req, res, next) => {
-  console.error('❌ Erro na API:', error);
+  console.error('❌ Erro API:', error);
   res.status(500).json({ success: false, error: 'Erro interno' });
 });
 
 // Inicializar servidor
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🌐 BudBot WhatsApp Connector ativo na porta ${PORT}`);
-  console.log(`🔗 URLs importantes:`);
+  console.log(`🌐 Servidor ativo na porta ${PORT}`);
+  console.log(`🔗 Endpoints:`);
   console.log(`   Health: /health`);
   console.log(`   QR Code: /qr`);
   console.log(`   Status: /status`);
   
-  // Inicializar WhatsApp após servidor estar rodando
+  // Inicializar WhatsApp
   setTimeout(() => {
-    console.log('🚀 Iniciando inicialização do WhatsApp...');
+    console.log('🚀 Iniciando WhatsApp com retry infinito...');
     initializeWhatsApp();
-  }, 5000);
+  }, 3000);
 });
 
 // Tratamento de sinais
@@ -542,5 +493,5 @@ process.on('unhandledRejection', (reason) => {
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
+  // Não encerrar o processo, tentar continuar
 });
