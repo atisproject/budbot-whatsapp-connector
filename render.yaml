@@ -1,4 +1,4 @@
-# BudBot WhatsApp Connector v4.1 - Target Closed Fix
+# BudBot WhatsApp Connector v4.2 - Memory Optimized
 services:
   - type: web
     name: budbot-whatsapp-connector
@@ -24,4 +24,6 @@ services:
         value: 0
       - key: WWEB_SESSION_PATH
         value: /data/wweb-session
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=256 --expose-gc"
     healthCheckPath: /health

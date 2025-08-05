@@ -1,10 +1,10 @@
 {
   "name": "budbot-whatsapp-connector",
-  "version": "4.1.0",
-  "description": "WhatsApp Web Connector para BudBot-IA - Target Closed Fix",
+  "version": "4.2.0",
+  "description": "WhatsApp Web Connector para BudBot-IA - Memory Optimized",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node --max-old-space-size=256 index.js",
     "dev": "nodemon index.js"
   },
   "keywords": ["whatsapp", "bot", "connector", "budbot", "persistent"],

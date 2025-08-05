@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * BudBot WhatsApp Connector v4.1
- * Target Closed Fix + Persistent Session
+ * BudBot WhatsApp Connector v4.2
+ * Memory Optimized + Target Closed Fix
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -26,11 +26,12 @@ const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
 const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 const SESSION_PATH = process.env.WWEB_SESSION_PATH || '/data/wweb-session';
 
-console.log('🚀 BudBot WhatsApp Connector v4.1 - Target Closed Fix');
+console.log('🚀 BudBot WhatsApp Connector v4.2 - Memory Optimized');
 console.log('- BUDBOT_API_URL:', BUDBOT_API_URL);
 console.log('- PORT:', PORT);
 console.log('- NODE_ENV:', process.env.NODE_ENV);
 console.log('- SESSION_PATH:', SESSION_PATH);
+console.log('- MEMORY LIMIT:', process.env.NODE_OPTIONS || '256MB');
 
 // Estado do cliente WhatsApp
 let client = null;
@@ -42,6 +43,14 @@ let isInitializing = false;
 let lastErrorTime = 0;
 let consecutiveErrors = 0;
 let isAuthenticated = false;
+
+// Garbage collection forçado
+if (global.gc) {
+  setInterval(() => {
+    global.gc();
+    console.log('🗑️ GC manual executado');
+  }, 300000); // A cada 5 minutos
+}
 
 // Função para aguardar
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -103,55 +112,61 @@ function findChromiumPath() {
   return undefined;
 }
 
-// Configuração Puppeteer ANTI-TARGET-CLOSED
+// Configuração Puppeteer OTIMIZADA PARA MEMÓRIA
 function getPuppeteerConfig() {
   const isRender = process.env.RENDER || process.env.NODE_ENV === 'production';
   const chromiumPath = findChromiumPath();
   
   const config = {
     headless: true,
-    timeout: 0, // TIMEOUT INFINITO - previne Target closed
+    timeout: 0,
     args: [
-      // Flags básicas de segurança
+      // MEMORY OPTIMIZATION - Flags essenciais para baixo consumo
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
+      '--single-process', // CRÍTICO: processo único para economizar RAM
       '--disable-gpu',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
+      
+      // MEMORY LIMITS
+      '--memory-pressure-off',
+      '--max_old_space_size=256', // Limite de 256MB para V8
+      '--aggressive-cache-discard',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      
+      // FEATURES DISABLED TO SAVE MEMORY
       '--disable-extensions',
       '--disable-plugins',
       '--disable-default-apps',
       '--disable-sync',
       '--disable-translate',
+      '--disable-component-update',
+      '--disable-domain-reliability',
+      '--disable-client-side-phishing-detection',
+      '--disable-speech-api',
+      '--disable-permissions-api',
+      '--disable-notifications',
+      '--disable-web-speech-api',
+      
+      // RENDERING OPTIMIZATION
       '--hide-scrollbars',
       '--mute-audio',
-      
-      // FLAGS ANTI-TARGET-CLOSED (essenciais)
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows', 
-      '--disable-renderer-backgrounding',
       '--disable-features=TranslateUI',
       '--disable-ipc-flooding-protection',
       '--disable-hang-monitor',
       '--disable-prompt-on-repost',
-      '--disable-background-networking',
-      '--disable-client-side-phishing-detection',
-      '--disable-sync',
-      '--disable-default-apps',
-      '--aggressive-cache-discard',
-      '--memory-pressure-off',
       '--disable-back-forward-cache',
-      
-      // Flags específicas para manter aba ativa
-      '--disable-features=VizDisplayCompositor,VizServiceDisplay',
+      '--disable-features=VizServiceDisplay',
       '--disable-blink-features=AutomationControlled',
-      '--no-default-browser-check',
-      '--no-first-run',
-      '--disable-component-update'
+      '--no-default-browser-check'
     ]
   };
 
@@ -159,84 +174,75 @@ function getPuppeteerConfig() {
     config.executablePath = chromiumPath;
   }
 
-  if (isRender) {
-    config.args.push(
-      '--single-process',
-      '--max_old_space_size=512'
-    );
-    console.log('🔧 Flags Render.com + Anti-Target-Closed aplicadas');
-  }
-
-  console.log(`📋 Puppeteer configurado com ${config.args.length} flags (timeout: infinito)`);
+  console.log(`📋 Puppeteer otimizado para memória com ${config.args.length} flags`);
   return config;
 }
 
-// Limpeza ULTRA-SEGURA sem Target closed
+// Monitor de memória
+function logMemoryUsage() {
+  const used = process.memoryUsage();
+  console.log(`📊 Memória: RSS=${Math.round(used.rss / 1024 / 1024)}MB, Heap=${Math.round(used.heapUsed / 1024 / 1024)}MB`);
+}
+
+// Limpeza ULTRA-SEGURA com otimização de memória
 async function ultraSafeCleanupClient() {
   if (!client) return;
   
   try {
-    console.log('🧹 Ultra-safe cleanup iniciada...');
+    console.log('🧹 Ultra-safe cleanup com otimização de memória...');
+    logMemoryUsage();
     
-    // Aguardar antes de qualquer operação
-    await sleep(2000);
+    await sleep(3000);
     
-    // Fechar página se existir e estiver ativa
     if (client.pupPage) {
       try {
-        // Verificar se página ainda está ativa
-        const isPageActive = !client.pupPage.isClosed();
-        if (isPageActive) {
+        if (!client.pupPage.isClosed()) {
           await client.pupPage.close();
           console.log('📄 Página fechada');
-        } else {
-          console.log('📄 Página já estava fechada');
         }
       } catch (e) {
         console.log('⚠️ Warning página:', e.message);
       }
     }
     
-    // Aguardar processamento
-    await sleep(1000);
+    await sleep(2000);
     
-    // Fechar browser se existir
     if (client.pupBrowser) {
       try {
-        const browserProcesses = client.pupBrowser.process();
-        if (browserProcesses) {
-          await client.pupBrowser.close();
-          console.log('🌐 Browser fechado');
-        }
+        await client.pupBrowser.close();
+        console.log('🌐 Browser fechado');
       } catch (e) {
         console.log('⚠️ Warning browser:', e.message);
       }
     }
     
-    // Aguardar finalização
-    await sleep(1000);
+    await sleep(2000);
     
-    // Só destruir se NÃO estiver autenticado (preservar sessão)
     if (!isAuthenticated && client && typeof client.destroy === 'function') {
       try {
         await client.destroy();
-        console.log('💥 Cliente destruído (não autenticado)');
+        console.log('💥 Cliente destruído');
       } catch (e) {
         console.log('⚠️ Warning destroy:', e.message);
       }
-    } else if (isAuthenticated) {
-      console.log('💾 Cliente preservado (sessão autenticada)');
+    }
+    
+    // Forçar garbage collection
+    if (global.gc) {
+      global.gc();
+      console.log('🗑️ Garbage collection forçado');
     }
     
   } catch (error) {
-    console.log('⚠️ Warning ultra-safe cleanup:', error.message);
+    console.log('⚠️ Warning cleanup:', error.message);
   } finally {
     client = null;
+    logMemoryUsage();
     console.log('✅ Ultra-safe cleanup concluída');
   }
 }
 
-// Inicializar WhatsApp com proteção anti-Target-Closed
+// Inicializar WhatsApp com otimização de memória
 async function initializeWhatsApp() {
   if (isInitializing) {
     console.log('⚠️ Inicialização em andamento...');
@@ -246,69 +252,75 @@ async function initializeWhatsApp() {
   isInitializing = true;
   initializationAttempts++;
   
+  logMemoryUsage();
+  
   const now = Date.now();
-  if (now - lastErrorTime < 300000) { // 5 minutos para Target closed
+  if (now - lastErrorTime < 360000) { // 6 minutos para memory issues
     consecutiveErrors++;
   } else {
     consecutiveErrors = 0;
   }
   lastErrorTime = now;
 
-  // Backoff progressivo mais conservador para Target closed
-  const waitTime = Math.min(600000, 45000 + (consecutiveErrors * 60000)); // Max 10 min
+  // Backoff mais longo para permitir liberação de memória
+  const waitTime = Math.min(900000, 60000 + (consecutiveErrors * 90000)); // Max 15 min
   
   console.log(`🔄 Tentativa ${initializationAttempts} (erros: ${consecutiveErrors})`);
-  console.log(`⏳ Aguardando ${waitTime/1000}s...`);
+  console.log(`⏳ Aguardando ${waitTime/1000}s para liberação de memória...`);
   
   await sleep(waitTime);
   
   try {
     const sessionPath = ensureSessionDirectoryExists();
     
-    // Ultra-safe cleanup
+    // Cleanup + forçar GC
     await ultraSafeCleanupClient();
-    await sleep(5000); // Aguardar cleanup completo
+    await sleep(8000); // Aguardar liberação de memória
     
-    console.log('📱 Criando cliente WhatsApp (anti-Target-Closed)...');
+    logMemoryUsage();
+    console.log('📱 Criando cliente WhatsApp (otimizado para memória)...');
     
-    // Cliente com configuração anti-Target-Closed
+    // Cliente com configuração otimizada para memória
     client = new Client({
       authStrategy: new LocalAuth({
-        name: 'budbot-target-fix',
+        name: 'budbot-memory-opt',
         dataPath: sessionPath
       }),
-      puppeteer: getPuppeteerConfig(), // Timeout infinito + flags
+      puppeteer: getPuppeteerConfig(),
       webVersionCache: { type: 'none' },
       takeoverOnConflict: true,
-      takeoverTimeoutMs: 60000, // Timeout maior
+      takeoverTimeoutMs: 90000, // Timeout maior para baixa memória
       restartOnAuthFail: false,
-      qrMaxRetries: 10 // Mais tentativas
+      qrMaxRetries: 15
     });
 
     setupWhatsAppEvents();
     
-    console.log('🔧 Inicializando com proteção anti-Target-Closed...');
+    console.log('🔧 Inicializando com otimização de memória...');
+    logMemoryUsage();
     
-    // SEM TIMEOUT - deixar Puppeteer gerenciar
+    // Inicialização sem timeout externo
     await client.initialize();
     
-    console.log('✅ Cliente inicializado sem Target closed!');
+    console.log('✅ Cliente inicializado com sucesso (memória otimizada)!');
+    logMemoryUsage();
     consecutiveErrors = 0;
     
   } catch (error) {
     console.error(`❌ Erro tentativa ${initializationAttempts}:`, error.message);
+    logMemoryUsage();
     
     await ultraSafeCleanupClient();
     
     let retryDelay;
     if (error.message.includes('Protocol error') || error.message.includes('Target closed')) {
-      retryDelay = Math.min(900000, 180000 + (consecutiveErrors * 120000)); // Max 15 min
-      console.log(`🔄 Target/Protocol error - retry em ${retryDelay/1000}s (timeout removido)`);
-    } else if (error.message.includes('Timeout')) {
-      retryDelay = Math.min(720000, 120000 + (consecutiveErrors * 90000)); // Max 12 min
-      console.log(`🔄 Timeout error - retry em ${retryDelay/1000}s`);
+      retryDelay = Math.min(1200000, 300000 + (consecutiveErrors * 180000)); // Max 20 min
+      console.log(`🔄 Memory/Target error - retry em ${retryDelay/1000}s`);
+    } else if (error.message.includes('memory') || error.message.includes('OOM')) {
+      retryDelay = Math.min(1800000, 600000 + (consecutiveErrors * 300000)); // Max 30 min
+      console.log(`🔄 Memory exhaustion - retry em ${retryDelay/1000}s`);
     } else {
-      retryDelay = Math.min(600000, 90000 + (consecutiveErrors * 60000)); // Max 10 min
+      retryDelay = Math.min(900000, 180000 + (consecutiveErrors * 120000)); // Max 15 min
       console.log(`🔄 General error - retry em ${retryDelay/1000}s`);
     }
     
@@ -323,18 +335,19 @@ async function initializeWhatsApp() {
   isInitializing = false;
 }
 
-// Events com proteção anti-Target-Closed
+// Events com monitoramento de memória
 function setupWhatsAppEvents() {
   if (!client) return;
 
   client.on('qr', async (qr) => {
-    console.log('📱 QR Code gerado (sem Target closed)!');
+    console.log('📱 QR Code gerado (memória otimizada)!');
+    logMemoryUsage();
     
     qrcodeTerminal.generate(qr, { small: true });
     
     try {
       const qrImage = await qrcode.toDataURL(qr, {
-        width: 450,
+        width: 400, // Menor para economizar memória
         margin: 2,
         color: {
           dark: '#000000',
@@ -345,8 +358,7 @@ function setupWhatsAppEvents() {
       qrCodeData = qr;
       qrCodeImage = qrImage;
       
-      console.log('✅ QR Code visual gerado');
-      console.log('🌐 Acesse /qr - proteção Target closed ativa');
+      console.log('✅ QR Code visual gerado (otimizado)');
       
     } catch (error) {
       console.error('❌ Erro gerando QR visual:', error.message);
@@ -358,14 +370,14 @@ function setupWhatsAppEvents() {
   });
 
   client.on('authenticated', () => {
-    console.log('🔐 Autenticado sem Target closed!');
-    console.log('💾 Sessão sendo salva (proteção ativa)...');
+    console.log('🔐 Autenticado (memória otimizada)!');
+    logMemoryUsage();
     isAuthenticated = true;
   });
 
   client.on('ready', () => {
-    console.log('✅ WhatsApp pronto (Target closed resolvido)!');
-    console.log('💾 Sessão persistente + proteção Target closed ativa');
+    console.log('✅ WhatsApp pronto (otimização de memória ativa)!');
+    logMemoryUsage();
     isReady = true;
     isAuthenticated = true;
     qrCodeData = null;
@@ -375,7 +387,8 @@ function setupWhatsAppEvents() {
   });
 
   client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ Loading: ${percent}% - ${message} (timeout: infinito)`);
+    console.log(`⏳ Loading: ${percent}% - ${message}`);
+    if (percent % 25 === 0) logMemoryUsage(); // Log a cada 25%
   });
 
   client.on('message', async (message) => {
@@ -396,7 +409,7 @@ function setupWhatsAppEvents() {
       const response = await axios.post(`${BUDBOT_API_URL}/api/whatsapp-connector/receive`, messageData, {
         headers: {
           'Authorization': `Bearer ${API_SECRET}`,
-          'X-WhatsApp-Connector': 'budbot-connector-v4.1',
+          'X-WhatsApp-Connector': 'budbot-connector-v4.2',
           'Content-Type': 'application/json'
         },
         timeout: 15000
@@ -414,20 +427,19 @@ function setupWhatsAppEvents() {
 
   client.on('disconnected', (reason) => {
     console.log('⚠️ Desconectado:', reason);
-    console.log('🔄 Reconectando com proteção Target closed...');
+    logMemoryUsage();
     
     isReady = false;
     
     setTimeout(async () => {
-      await sleep(45000);
-      console.log('🔄 Reconexão automática...');
+      await sleep(60000); // Aguardar liberação de memória
+      console.log('🔄 Reconexão com otimização de memória...');
       initializeWhatsApp();
-    }, 60000);
+    }, 90000);
   });
 
   client.on('auth_failure', async (msg) => {
     console.error('❌ Falha autenticação:', msg);
-    console.log('🗑️ Limpando sessão corrompida...');
     
     isReady = false;
     isAuthenticated = false;
@@ -446,12 +458,13 @@ function setupWhatsAppEvents() {
     }
     
     await ultraSafeCleanupClient();
-    setTimeout(initializeWhatsApp, 90000);
+    setTimeout(initializeWhatsApp, 120000);
   });
 }
 
 // API Routes
 app.get('/health', (req, res) => {
+  const used = process.memoryUsage();
   const sessionPath = ensureSessionDirectoryExists();
   let sessionInfo = { files: 0, hasSession: false };
   
@@ -468,7 +481,7 @@ app.get('/health', (req, res) => {
 
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '4.1.0-target-closed-fix',
+    version: '4.2.0-memory-optimized',
     status: 'online',
     whatsapp_ready: isReady,
     is_authenticated: isAuthenticated,
@@ -478,28 +491,27 @@ app.get('/health', (req, res) => {
     consecutive_errors: consecutiveErrors,
     is_initializing: isInitializing,
     session_info: sessionInfo,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    timestamp: new Date().toISOString(),
-    environment: {
-      node_env: process.env.NODE_ENV,
-      budbot_url: BUDBOT_API_URL,
-      render_detected: !!(process.env.RENDER || process.env.NODE_ENV === 'production'),
-      chromium_path: findChromiumPath() || 'default',
-      session_path: sessionPath
+    memory_usage: {
+      rss_mb: Math.round(used.rss / 1024 / 1024),
+      heap_used_mb: Math.round(used.heapUsed / 1024 / 1024),
+      heap_total_mb: Math.round(used.heapTotal / 1024 / 1024),
+      external_mb: Math.round(used.external / 1024 / 1024)
     },
-    fixes_applied: [
-      'target-closed-fix',
-      'timeout-infinite',
-      'anti-backgrounding-flags',
-      'persistent-session',
-      'visual-qr',
-      'ultra-safe-cleanup'
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    optimizations: [
+      'memory-optimized',
+      'single-process',
+      'aggressive-cache-discard',
+      'gc-forced',
+      'heap-limit-256mb',
+      'features-disabled'
     ]
   });
 });
 
 app.get('/status', (req, res) => {
+  const used = process.memoryUsage();
   res.json({
     connected: isReady,
     authenticated: isAuthenticated,
@@ -508,8 +520,8 @@ app.get('/status', (req, res) => {
     attempts: initializationAttempts,
     errors: consecutiveErrors,
     initializing: isInitializing,
-    target_closed_fix: true,
-    timeout_infinite: true,
+    memory_optimized: true,
+    memory_mb: Math.round(used.rss / 1024 / 1024),
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -521,13 +533,13 @@ app.get('/qr', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>WhatsApp QR Code - BudBot v4.1</title>
+        <title>WhatsApp QR Code - BudBot v4.2</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta http-equiv="refresh" content="25">
+        <meta http-equiv="refresh" content="30">
         <style>
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body { 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+                font-family: system-ui, sans-serif; 
                 background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
                 min-height: 100vh;
                 display: flex;
@@ -537,138 +549,80 @@ app.get('/qr', (req, res) => {
             }
             .container { 
                 background: white; 
-                padding: 60px; 
-                border-radius: 30px; 
-                box-shadow: 0 40px 80px rgba(0,0,0,0.3);
+                padding: 40px; 
+                border-radius: 20px; 
+                box-shadow: 0 20px 40px rgba(0,0,0,0.2);
                 text-align: center;
-                max-width: 800px;
+                max-width: 600px;
                 width: 100%;
-                animation: slideUp 0.6s ease-out;
-            }
-            @keyframes slideUp {
-                from { opacity: 0; transform: translateY(50px); }
-                to { opacity: 1; transform: translateY(0); }
             }
             .title { 
                 color: #333; 
                 margin-bottom: 20px; 
                 font-weight: 800;
-                font-size: 3em;
+                font-size: 2.5em;
                 background: linear-gradient(135deg, #25D366, #128C7E);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
-                background-clip: text;
             }
             .version {
-                background: linear-gradient(135deg, #dc3545, #c82333);
+                background: linear-gradient(135deg, #ff6b35, #f7931e);
                 color: white;
-                padding: 15px 30px;
-                border-radius: 30px;
-                font-size: 1.3em;
-                margin: 25px 0;
+                padding: 12px 24px;
+                border-radius: 20px;
+                font-size: 1.1em;
+                margin: 20px 0;
                 display: inline-block;
-                font-weight: 700;
-                box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4);
+                font-weight: 600;
             }
             .qr-container { 
-                padding: 40px;
-                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-                border-radius: 30px;
-                margin: 40px 0;
-                border: 5px solid #25D366;
-                box-shadow: inset 0 4px 15px rgba(0,0,0,0.1);
+                padding: 30px;
+                background: #f8f9fa;
+                border-radius: 20px;
+                margin: 30px 0;
+                border: 3px solid #25D366;
             }
             .qr-container img { 
                 max-width: 100%;
-                width: 450px;
-                height: 450px;
-                border-radius: 25px;
+                width: 350px;
+                height: 350px;
+                border-radius: 15px;
                 background: white;
+                padding: 15px;
+            }
+            .memory-info {
+                background: linear-gradient(135deg, #ff6b35, #f7931e);
+                color: white;
                 padding: 20px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            }
-            .fix-info {
-                background: linear-gradient(135deg, #28a745, #20c956);
-                color: white;
-                padding: 30px;
-                border-radius: 25px;
-                margin: 40px 0;
-                text-align: left;
-            }
-            .fix-item {
-                padding: 15px 0;
-                border-bottom: 2px solid rgba(255,255,255,0.2);
-                font-weight: 600;
-                font-size: 1.2em;
-                display: flex;
-                align-items: center;
-            }
-            .fix-item:last-child { border-bottom: none; }
-            .fix-icon {
-                font-size: 1.5em;
-                margin-right: 15px;
-                width: 50px;
-                text-align: center;
-            }
-            .status {
-                background: linear-gradient(135deg, #007bff, #0056b3);
-                color: white;
-                padding: 20px 40px;
-                border-radius: 35px;
-                display: inline-block;
-                margin: 30px 0;
-                font-weight: 800;
-                font-size: 1.4em;
-                box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
-                animation: pulse 2.5s infinite;
-            }
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-                100% { transform: scale(1); }
+                border-radius: 15px;
+                margin: 20px 0;
+                font-size: 0.9em;
             }
             .footer {
                 color: #666;
-                font-size: 1.1em;
-                margin-top: 40px;
-                line-height: 1.8;
+                font-size: 0.9em;
+                margin-top: 20px;
             }
         </style>
     </head>
     <body>
         <div class="container">
             <h1 class="title">WhatsApp QR</h1>
-            <div class="version">v4.1 Target Closed Fix</div>
-            <div class="status">🚀 Proteção Target Closed Ativa</div>
+            <div class="version">v4.2 Memory Optimized</div>
             
             <div class="qr-container">
                 <img src="${qrCodeImage}" alt="QR Code WhatsApp" />
             </div>
             
-            <div class="fix-info">
-                <div style="text-align: center; font-size: 1.5em; font-weight: 800; margin-bottom: 20px;">🛡️ CORREÇÕES APLICADAS</div>
-                <div class="fix-item">
-                    <span class="fix-icon">⏰</span>
-                    Timeout infinito - sem fechamento prematuro
-                </div>
-                <div class="fix-item">
-                    <span class="fix-icon">🛡️</span>
-                    Flags anti-backgrounding aplicadas
-                </div>
-                <div class="fix-item">
-                    <span class="fix-icon">💾</span>
-                    Sessão persistente + proteção Target closed
-                </div>
-                <div class="fix-item">
-                    <span class="fix-icon">🔄</span>
-                    Ultra-safe cleanup sem perder conexão
-                </div>
+            <div class="memory-info">
+                🧠 OTIMIZAÇÃO DE MEMÓRIA ATIVA<br>
+                Processo único • Limite 256MB • GC automático
             </div>
             
             <div class="footer">
-                <strong>🚀 BudBot-IA WhatsApp Connector v4.1</strong><br>
-                Target Closed Fix + Sessão Persistente<br>
-                <small>Atualização automática em 25 segundos</small>
+                <strong>BudBot-IA WhatsApp Connector v4.2</strong><br>
+                Otimizado para baixo consumo de memória<br>
+                <small>Atualização em 30s</small>
             </div>
         </div>
     </body>
@@ -678,39 +632,26 @@ app.get('/qr', (req, res) => {
   } else if (isReady && isAuthenticated) {
     res.send(`
     <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #25D366, #128C7E); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 80px; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.3);">
-            <div style="font-size: 6em; margin-bottom: 30px;">✅</div>
-            <h1 style="color: #25D366; margin-bottom: 25px; font-size: 3em;">Conectado!</h1>
-            <div style="background: #dc3545; color: white; padding: 20px 40px; border-radius: 25px; margin: 30px 0; font-size: 1.3em;">Target Closed Fix v4.1</div>
-            <p style="font-size: 1.4em; color: #666; margin: 25px 0;">Sem Protocol errors</p>
-            <div style="background: #28a745; color: white; padding: 15px 30px; border-radius: 20px; margin: 20px 0;">
-                🛡️ Proteção Target closed ativa
-            </div>
+        <div style="background: white; padding: 60px; border-radius: 20px;">
+            <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+            <h1 style="color: #25D366; margin-bottom: 20px; font-size: 2em;">Conectado!</h1>
+            <div style="background: #ff6b35; color: white; padding: 15px 30px; border-radius: 15px; margin: 20px 0;">Memory Optimized v4.2</div>
         </div>
     </div>`);
     
   } else {
+    const used = process.memoryUsage();
     res.send(`
     <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #6c757d, #495057); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 80px; border-radius: 30px;">
-            <div style="font-size: 5em; margin-bottom: 30px;">🛡️</div>
-            <h1 style="color: #6c757d; margin-bottom: 25px; font-size: 2.5em;">Carregando v4.1...</h1>
-            <div style="background: #dc3545; color: white; padding: 15px 30px; border-radius: 20px; margin: 20px 0; font-size: 1.2em;">Target Closed Fix</div>
-            <p style="font-size: 1.3em; margin: 20px 0;">Tentativa: ${initializationAttempts}</p>
-            <p style="color: #666; font-size: 1.1em;">Erros: ${consecutiveErrors}</p>
-            <p style="font-size: 1.2em; margin: 30px 0;">${isInitializing ? '🔄 Timeout: ∞' : '⏳ Aguardando...'}</p>
-            <div style="margin: 40px 0;">
-                <div style="width: 80px; height: 80px; border: 8px solid #f3f3f3; border-top: 8px solid #dc3545; border-radius: 50%; animation: spin 1.5s linear infinite; margin: 0 auto;"></div>
-            </div>
-            <p style="font-weight: 700; font-size: 1.2em; color: #dc3545;">Proteção Target closed ativa</p>
+        <div style="background: white; padding: 60px; border-radius: 20px;">
+            <div style="font-size: 4em; margin-bottom: 20px;">🧠</div>
+            <h1 style="color: #6c757d; margin-bottom: 20px; font-size: 2em;">Carregando v4.2...</h1>
+            <div style="background: #ff6b35; color: white; padding: 12px 24px; border-radius: 15px; margin: 15px 0;">Memory Optimized</div>
+            <p style="font-size: 1.1em; margin: 15px 0;">Tentativa: ${initializationAttempts}</p>
+            <p style="color: #666;">Memória: ${Math.round(used.rss / 1024 / 1024)}MB</p>
+            <p style="font-size: 1em; margin: 20px 0;">${isInitializing ? '🔄 Otimizando...' : '⏳ Aguardando...'}</p>
         </div>
-        <style>
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
-        <script>setTimeout(() => location.reload(), 20000);</script>
+        <script>setTimeout(() => location.reload(), 25000);</script>
     </div>`);
   }
 });
@@ -739,7 +680,7 @@ app.post('/send', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Enviado',
-      target_closed_fix: true,
+      memory_optimized: true,
       timestamp: new Date().toISOString()
     });
 
@@ -755,87 +696,91 @@ app.post('/send', async (req, res) => {
 
 app.post('/restart', async (req, res) => {
   try {
-    console.log('🔄 Restart (Target closed fix)...');
+    console.log('🔄 Restart (memory optimized)...');
     await ultraSafeCleanupClient();
     isReady = false;
     qrCodeData = null;
     qrCodeImage = null;
     isInitializing = false;
     consecutiveErrors = 0;
-    setTimeout(initializeWhatsApp, 15000);
-    res.json({ success: true, message: 'Restart com proteção' });
+    setTimeout(initializeWhatsApp, 20000);
+    res.json({ success: true, message: 'Restart com otimização' });
   } catch (error) {
     res.json({ success: true, message: 'Restart iniciado' });
   }
 });
 
 app.get('/', (req, res) => {
+  const used = process.memoryUsage();
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '4.1.0-target-closed-fix',
+    version: '4.2.0-memory-optimized',
     status: isReady ? 'connected' : 'initializing',
-    target_closed_protection: true,
-    timeout_infinite: true,
+    memory_optimized: true,
+    memory_usage_mb: Math.round(used.rss / 1024 / 1024),
     attempts: initializationAttempts,
     consecutive_errors: consecutiveErrors,
     features: [
-      'target-closed-fix',
-      'timeout-infinite',
-      'anti-backgrounding-flags',
+      'memory-optimized',
+      'single-process',
+      'gc-forced',
+      'heap-limit-256mb',
       'persistent-session',
-      'visual-qr',
-      'ultra-safe-cleanup'
-    ],
-    endpoints: {
-      health: '/health',
-      status: '/status', 
-      qr: '/qr',
-      send: 'POST /send',
-      restart: 'POST /restart'
-    }
+      'visual-qr'
+    ]
   });
 });
 
 // Inicializar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Servidor na porta ${PORT}`);
-  console.log(`🛡️ Proteção Target Closed ativa!`);
-  console.log(`⏰ Timeout infinito configurado`);
+  console.log(`🧠 Otimização de memória ativa!`);
+  console.log(`📏 Limite Node.js: 256MB`);
   console.log(`💾 Sessão persistente habilitada`);
   console.log(`🎨 QR Code visual em /qr`);
   
-  const chromiumPath = findChromiumPath();
-  console.log(`🔍 Chromium: ${chromiumPath || 'padrão'}`);
+  logMemoryUsage();
   
   setTimeout(() => {
-    console.log('🚀 Iniciando com proteção Target Closed...');
+    console.log('🚀 Iniciando com otimização de memória...');
     initializeWhatsApp();
-  }, 15000);
+  }, 20000);
 });
 
 // Tratamento de sinais
 process.on('SIGINT', async () => {
-  console.log('🛑 SIGINT - encerrando com proteção...');
+  console.log('🛑 SIGINT - encerrando (liberando memória)...');
   await ultraSafeCleanupClient();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🛑 SIGTERM - encerrando com proteção...');
+  console.log('🛑 SIGTERM - encerrando (liberando memória)...');
   await ultraSafeCleanupClient();
   process.exit(0);
 });
 
+// Monitoramento de memória crítica
+process.on('warning', (warning) => {
+  if (warning.name === 'MaxListenersExceededWarning' || warning.message.includes('memory')) {
+    console.warn('⚠️ Warning memória:', warning.message);
+    logMemoryUsage();
+    if (global.gc) global.gc();
+  }
+});
+
 process.on('unhandledRejection', async (reason, promise) => {
   console.error('❌ Unhandled Rejection:', reason);
+  logMemoryUsage();
   
-  if (client && client.pupPage && reason.message && 
+  if (client && reason.message && 
       (reason.message.includes('close') || 
        reason.message.includes('Protocol error') ||
-       reason.message.includes('Target closed'))) {
+       reason.message.includes('Target closed') ||
+       reason.message.includes('memory'))) {
     try {
       await ultraSafeCleanupClient();
-      console.log('🧹 Ultra-safe cleanup após rejection');
+      console.log('🧹 Cleanup após rejection');
     } catch (cleanupError) {
       console.log('⚠️ Erro cleanup:', cleanupError.message);
     }
@@ -844,12 +789,15 @@ process.on('unhandledRejection', async (reason, promise) => {
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error.message);
+  logMemoryUsage();
   
   if (error.message.includes('Protocol error') || 
-      error.message.includes('Target closed')) {
+      error.message.includes('Target closed') ||
+      error.message.includes('memory') ||
+      error.message.includes('heap')) {
     setTimeout(async () => {
       await ultraSafeCleanupClient();
-      console.log('🧹 Ultra-safe cleanup após exception');
-    }, 5000);
+      console.log('🧹 Cleanup após exception');
+    }, 8000);
   }
 });
