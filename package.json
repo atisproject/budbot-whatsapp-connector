@@ -1,7 +1,7 @@
 {
   "name": "budbot-whatsapp-connector",
-  "version": "4.0.0",
-  "description": "WhatsApp Web Connector para BudBot-IA - Persistent Session",
+  "version": "4.1.0",
+  "description": "WhatsApp Web Connector para BudBot-IA - Target Closed Fix",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

@@ -1,4 +1,4 @@
-# BudBot WhatsApp Connector v4.0 - Persistent Session
+# BudBot WhatsApp Connector v4.1 - Target Closed Fix
 services:
   - type: web
     name: budbot-whatsapp-connector
@@ -20,6 +20,8 @@ services:
         value: true
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/chromium
+      - key: PUPPETEER_TIMEOUT
+        value: 0
       - key: WWEB_SESSION_PATH
         value: /data/wweb-session
     healthCheckPath: /health

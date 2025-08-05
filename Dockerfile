@@ -1,7 +1,7 @@
-# Dockerfile para Render.com - Persistent Session
+# Dockerfile para Render.com - Target Closed Fix
 FROM node:18-slim
 
-# Instalar dependências do sistema para Chromium
+# Instalar dependências do sistema para Chromium + correções Target closed
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -46,7 +46,7 @@ RUN apt-get update && apt-get install -y \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Criar diretório persistente para sessões WhatsApp (Render.com /data é persistente)
+# Criar diretório persistente para sessões WhatsApp
 RUN mkdir -p /data/wweb-session && \
     chmod -R 777 /data/wweb-session
 
@@ -57,10 +57,11 @@ RUN npm install --omit=dev
 # Copiar código da aplicação
 COPY . .
 
-# Definir variáveis de ambiente
+# Definir variáveis de ambiente para Target closed fix
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV WWEB_SESSION_PATH=/data/wweb-session
+ENV PUPPETEER_TIMEOUT=0
 
 # Expor porta
 EXPOSE 10000
