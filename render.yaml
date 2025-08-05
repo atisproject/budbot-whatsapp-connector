@@ -1,4 +1,4 @@
-# BudBot WhatsApp Connector v3.0 - Render.com Optimized
+# BudBot WhatsApp Connector v2.0 - Node.js Nativo
 services:
   - type: web
     name: budbot-whatsapp-connector
@@ -15,6 +15,4 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: RENDER
-        value: true
     healthCheckPath: /health
