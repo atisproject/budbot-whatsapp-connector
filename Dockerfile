@@ -1,4 +1,4 @@
-# Dockerfile para Render.com com suporte completo ao Chromium
+# Dockerfile para Render.com - NPM Fix
 FROM node:18-slim
 
 # Instalar dependências do sistema para Chromium
@@ -46,9 +46,11 @@ RUN apt-get update && apt-get install -y \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Copiar package.json e instalar dependências
-COPY package*.json ./
-RUN npm ci --only=production
+# Copiar package.json APENAS (sem package-lock.json)
+COPY package.json ./
+
+# Instalar dependências com npm install (não npm ci)
+RUN npm install --omit=dev
 
 # Copiar código da aplicação
 COPY . .

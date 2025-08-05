@@ -1,4 +1,4 @@
-# BudBot WhatsApp Connector v3.1 - Chromium Fix
+# BudBot WhatsApp Connector v3.2 - NPM + Chromium Fix
 services:
   - type: web
     name: budbot-whatsapp-connector

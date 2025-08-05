@@ -1,7 +1,7 @@
 {
   "name": "budbot-whatsapp-connector",
-  "version": "3.1.0",
-  "description": "WhatsApp Web Connector para BudBot-IA - Chromium Fix",
+  "version": "3.2.0",
+  "description": "WhatsApp Web Connector para BudBot-IA - NPM Fix",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

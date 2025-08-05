@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * BudBot WhatsApp Connector v3.1
- * Chromium Fix para Render.com
+ * BudBot WhatsApp Connector v3.2
+ * NPM Fix + Chromium Correções
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -22,7 +22,7 @@ app.use(express.json());
 const BUDBOT_API_URL = process.env.BUDBOT_API_URL || 'http://localhost:5000';
 const API_SECRET = process.env.API_SECRET || 'budbot-secret-key';
 
-console.log('🚀 BudBot WhatsApp Connector v3.1 - Chromium Fix');
+console.log('🚀 BudBot WhatsApp Connector v3.2 - NPM + Chromium Fix');
 console.log('- BUDBOT_API_URL:', BUDBOT_API_URL);
 console.log('- PORT:', PORT);
 console.log('- NODE_ENV:', process.env.NODE_ENV);
@@ -51,23 +51,23 @@ function findChromiumPath() {
 
   for (const path of possiblePaths) {
     if (path) {
-      console.log(`🔍 Tentando Chromium em: ${path}`);
+      console.log(`🔍 Chromium encontrado: ${path}`);
       return path;
     }
   }
   
-  console.log('⚠️ Chromium não encontrado, usando padrão do Puppeteer');
+  console.log('⚠️ Chromium não encontrado, usando padrão');
   return undefined;
 }
 
-// Configuração Puppeteer otimizada para Render.com
+// Configuração Puppeteer com flags corretas para Render.com
 function getPuppeteerConfig() {
   const isRender = process.env.RENDER || process.env.NODE_ENV === 'production';
   const chromiumPath = findChromiumPath();
   
   const config = {
     headless: true,
-    timeout: 60000, // Timeout aumentado para 60s
+    timeout: 60000, // Timeout conforme sua sugestão
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -75,64 +75,44 @@ function getPuppeteerConfig() {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--disable-extensions',
-      '--disable-plugins',
-      '--disable-default-apps',
-      '--disable-sync',
-      '--disable-translate',
-      '--hide-scrollbars',
-      '--mute-audio',
-      '--memory-pressure-off'
+      '--disable-gpu'
     ]
   };
 
   // Usar Chromium do sistema se disponível
   if (chromiumPath) {
     config.executablePath = chromiumPath;
-    console.log(`✅ Usando Chromium: ${chromiumPath}`);
   }
 
   if (isRender) {
-    config.args.push(
-      '--single-process',
-      '--disable-background-networking',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-features=TranslateUI',
-      '--disable-ipc-flooding-protection'
-    );
-    console.log('🔧 Configuração Render.com aplicada');
+    config.args.push('--single-process'); // Apenas em produção conforme sua orientação
+    console.log('🔧 Flags Render.com aplicadas');
   }
 
-  console.log(`📋 Args Puppeteer: ${config.args.length} flags`);
+  console.log(`📋 Puppeteer configurado com ${config.args.length} flags`);
   return config;
 }
 
-// Limpeza segura do cliente
+// Limpeza segura do cliente conforme sua correção
 async function safeCleanupClient() {
   if (!client) return;
   
   try {
-    console.log('🧹 Iniciando limpeza do cliente...');
+    console.log('🧹 Iniciando limpeza segura...');
     
-    // Verificar e fechar página primeiro
+    // Verificar client.pupPage antes de qualquer operação
     if (client.pupPage && typeof client.pupPage.close === 'function') {
       await client.pupPage.close();
       console.log('📄 Página fechada');
     }
     
-    // Verificar e fechar browser
     if (client.pupBrowser && typeof client.pupBrowser.close === 'function') {
       await client.pupBrowser.close();
       console.log('🌐 Browser fechado');
     }
     
-    // Só chamar destroy se cliente tem página inicializada
-    if (client && typeof client.destroy === 'function' && client.pupPage) {
+    // Só chamar destroy se client.pupPage existe (sua correção)
+    if (client && client.pupPage && typeof client.destroy === 'function') {
       await client.destroy();
       console.log('💥 Cliente destruído');
     }
@@ -144,91 +124,80 @@ async function safeCleanupClient() {
   }
 }
 
-// Inicializar WhatsApp com estratégia robusta
+// Inicializar WhatsApp com retry inteligente
 async function initializeWhatsApp() {
   if (isInitializing) {
-    console.log('⚠️ Inicialização já em andamento, aguardando...');
+    console.log('⚠️ Inicialização em andamento...');
     return;
   }
 
   isInitializing = true;
   initializationAttempts++;
   
-  // Estratégia de backoff baseada em erros consecutivos
+  // Backoff baseado em erros consecutivos
   const now = Date.now();
-  if (now - lastErrorTime < 120000) { // 2 minutos
+  if (now - lastErrorTime < 120000) {
     consecutiveErrors++;
   } else {
     consecutiveErrors = 0;
   }
   lastErrorTime = now;
 
-  // Backoff inteligente
-  const baseDelay = 10000; // 10s base
-  const errorMultiplier = Math.min(consecutiveErrors * 15000, 180000); // Max 3 min
-  const waitTime = baseDelay + errorMultiplier;
+  const waitTime = Math.min(180000, 15000 + (consecutiveErrors * 20000));
   
-  console.log(`🔄 Tentativa ${initializationAttempts} (erros consecutivos: ${consecutiveErrors})`);
-  console.log(`⏳ Aguardando ${waitTime/1000}s antes de tentar...`);
+  console.log(`🔄 Tentativa ${initializationAttempts} (erros: ${consecutiveErrors})`);
+  console.log(`⏳ Aguardando ${waitTime/1000}s...`);
   
   await sleep(waitTime);
   
   try {
-    // Limpeza completa antes de tentar
+    // Limpeza antes de tentar
     await safeCleanupClient();
-    await sleep(3000); // Aguardar limpeza completa
+    await sleep(3000);
     
-    console.log('📱 Criando novo cliente WhatsApp...');
+    console.log('📱 Criando cliente WhatsApp...');
     
-    // Obter configuração do Puppeteer
-    const puppeteerConfig = getPuppeteerConfig();
-    
-    // Criar cliente com configuração robusta
+    // Configuração com suas correções
     client = new Client({
       authStrategy: new LocalAuth({
-        name: `budbot-chromium-${Date.now()}`,
+        name: `budbot-npm-fix-${Date.now()}`,
         dataPath: './.wwebjs_auth'
       }),
-      puppeteer: puppeteerConfig,
+      puppeteer: getPuppeteerConfig(),
       takeoverOnConflict: true,
       takeoverTimeoutMs: 15000,
       restartOnAuthFail: false,
       qrMaxRetries: 5
     });
 
-    // Configurar eventos antes de inicializar
     setupWhatsAppEvents();
     
-    console.log('🔧 Inicializando cliente com timeout estendido...');
+    console.log('🔧 Inicializando com timeout estendido...');
     
-    // Promise de inicialização com timeout generoso
+    // Timeout aumentado para dar tempo ao Chromium
     await Promise.race([
       client.initialize(),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout de 300 segundos')), 300000)
+        setTimeout(() => reject(new Error('Timeout 300s')), 300000)
       )
     ]);
     
-    console.log('✅ Cliente inicializado com sucesso!');
-    consecutiveErrors = 0; // Reset on success
+    console.log('✅ WhatsApp inicializado com sucesso!');
+    consecutiveErrors = 0;
     
   } catch (error) {
-    console.error(`❌ Erro na tentativa ${initializationAttempts}:`, error.message);
+    console.error(`❌ Erro tentativa ${initializationAttempts}:`, error.message);
     
-    // Limpeza após erro
     await safeCleanupClient();
     
-    // Determinar tipo de erro e delay
+    // Retry baseado no tipo de erro
     let retryDelay;
     if (error.message.includes('Protocol error') || error.message.includes('Target closed')) {
-      retryDelay = Math.min(300000, 60000 + (consecutiveErrors * 30000)); // Max 5 min
-      console.log(`🔄 Protocol error - nova tentativa em ${retryDelay/1000}s`);
-    } else if (error.message.includes('Timeout')) {
-      retryDelay = Math.min(600000, 120000 + (consecutiveErrors * 60000)); // Max 10 min
-      console.log(`🔄 Timeout error - nova tentativa em ${retryDelay/1000}s`);
+      retryDelay = Math.min(300000, 60000 + (consecutiveErrors * 30000));
+      console.log(`🔄 Protocol error - retry em ${retryDelay/1000}s`);
     } else {
-      retryDelay = Math.min(450000, 90000 + (consecutiveErrors * 45000)); // Max 7.5 min
-      console.log(`🔄 General error - nova tentativa em ${retryDelay/1000}s`);
+      retryDelay = Math.min(480000, 120000 + (consecutiveErrors * 60000));
+      console.log(`🔄 Erro geral - retry em ${retryDelay/1000}s`);
     }
     
     setTimeout(() => {
@@ -246,34 +215,29 @@ async function initializeWhatsApp() {
 function setupWhatsAppEvents() {
   if (!client) return;
 
-  // QR Code
   client.on('qr', (qr) => {
-    console.log('📱 QR Code gerado com sucesso!');
+    console.log('📱 QR Code gerado!');
     qrcode.generate(qr, { small: true });
     qrCodeData = qr;
-    consecutiveErrors = 0; // Reset ao gerar QR
+    consecutiveErrors = 0;
   });
 
-  // Cliente pronto
   client.on('ready', () => {
-    console.log('✅ WhatsApp conectado com sucesso!');
+    console.log('✅ WhatsApp conectado!');
     isReady = true;
     qrCodeData = null;
     initializationAttempts = 0;
     consecutiveErrors = 0;
   });
 
-  // Autenticado
   client.on('authenticated', () => {
-    console.log('🔐 Autenticação realizada com sucesso!');
+    console.log('🔐 Autenticado!');
   });
 
-  // Loading
   client.on('loading_screen', (percent, message) => {
     console.log(`⏳ Loading: ${percent}% - ${message}`);
   });
 
-  // Mensagem recebida
   client.on('message', async (message) => {
     try {
       if (message.from.includes('@g.us')) return;
@@ -289,20 +253,18 @@ function setupWhatsAppEvents() {
 
       console.log(`📨 ${messageData.phone}: ${messageData.message}`);
 
-      // Enviar para BudBot-IA
       const response = await axios.post(`${BUDBOT_API_URL}/api/whatsapp-connector/receive`, messageData, {
         headers: {
           'Authorization': `Bearer ${API_SECRET}`,
-          'X-WhatsApp-Connector': 'budbot-connector-v3.1',
+          'X-WhatsApp-Connector': 'budbot-connector-v3.2',
           'Content-Type': 'application/json'
         },
         timeout: 15000
       });
 
-      // Resposta automática
       if (response.data.auto_reply && response.data.reply_message) {
         await message.reply(response.data.reply_message);
-        console.log(`🤖 Resposta automática enviada`);
+        console.log(`🤖 Resposta enviada`);
       }
 
     } catch (error) {
@@ -310,22 +272,19 @@ function setupWhatsAppEvents() {
     }
   });
 
-  // Desconectado
   client.on('disconnected', (reason) => {
-    console.log('⚠️ WhatsApp desconectado:', reason);
+    console.log('⚠️ Desconectado:', reason);
     isReady = false;
     qrCodeData = null;
     
     setTimeout(async () => {
-      console.log('🔄 Tentando reconectar automaticamente...');
       await safeCleanupClient();
       setTimeout(initializeWhatsApp, 10000);
     }, 15000);
   });
 
-  // Erro autenticação
   client.on('auth_failure', async (msg) => {
-    console.error('❌ Falha na autenticação:', msg);
+    console.error('❌ Falha autenticação:', msg);
     isReady = false;
     qrCodeData = null;
     
@@ -336,11 +295,9 @@ function setupWhatsAppEvents() {
 
 // Rotas da API
 app.get('/health', (req, res) => {
-  const chromiumPath = findChromiumPath();
-  
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '3.1.0-chromium-fix',
+    version: '3.2.0-npm-chromium-fix',
     status: 'online',
     whatsapp_ready: isReady,
     has_qr: qrCodeData !== null,
@@ -354,8 +311,8 @@ app.get('/health', (req, res) => {
       node_env: process.env.NODE_ENV,
       budbot_url: BUDBOT_API_URL,
       render_detected: !!(process.env.RENDER || process.env.NODE_ENV === 'production'),
-      chromium_path: chromiumPath || 'default',
-      puppeteer_skip_download: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+      chromium_path: findChromiumPath() || 'default',
+      npm_fix_applied: true
     }
   });
 });
@@ -368,6 +325,7 @@ app.get('/status', (req, res) => {
     errors: consecutiveErrors,
     initializing: isInitializing,
     chromium_available: !!findChromiumPath(),
+    npm_fix: 'applied',
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -379,10 +337,9 @@ app.get('/qr', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>WhatsApp QR Code - BudBot v3.1</title>
+        <title>WhatsApp QR - BudBot v3.2</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-            * { box-sizing: border-box; }
             body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
                 margin: 0; 
@@ -401,133 +358,81 @@ app.get('/qr', (req, res) => {
                 text-align: center;
                 max-width: 600px;
                 width: 100%;
-                animation: fadeInUp 0.6s ease-out;
+                animation: slideIn 0.5s ease-out;
             }
-            @keyframes fadeInUp {
-                from { opacity: 0; transform: translateY(30px); }
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateY(20px); }
                 to { opacity: 1; transform: translateY(0); }
-            }
-            .logo { 
-                font-size: 5em; 
-                margin-bottom: 20px;
-                animation: bounce 2s infinite;
-            }
-            @keyframes bounce {
-                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                40% { transform: translateY(-10px); }
-                60% { transform: translateY(-5px); }
             }
             .title { 
                 color: #333; 
                 margin-bottom: 15px; 
                 font-weight: 700;
-                font-size: 2.2em;
-            }
-            .subtitle { 
-                color: #666; 
-                margin-bottom: 25px;
-                font-size: 1.2em;
+                font-size: 2.5em;
             }
             .version {
-                background: linear-gradient(135deg, #007bff, #0056b3);
+                background: linear-gradient(135deg, #28a745, #20c956);
                 color: white;
-                padding: 10px 20px;
+                padding: 12px 24px;
                 border-radius: 25px;
-                font-size: 1em;
-                margin: 15px 0;
+                font-size: 1.1em;
+                margin: 20px 0;
                 display: inline-block;
                 font-weight: 600;
-                box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
             }
             .qr-container { 
                 padding: 30px;
-                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-                border-radius: 25px;
+                background: #f8f9fa;
+                border-radius: 20px;
                 margin: 30px 0;
-                border: 4px solid #25D366;
-                box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+                border: 3px solid #25D366;
             }
             .qr-container img { 
                 max-width: 100%; 
-                border-radius: 20px;
-                filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
+                border-radius: 15px;
                 background: white;
                 padding: 20px;
             }
-            .steps {
-                text-align: left;
-                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-                padding: 30px;
-                border-radius: 20px;
-                margin: 30px 0;
-                border-left: 5px solid #25D366;
-            }
-            .step {
-                padding: 15px 0;
-                border-bottom: 2px solid #dee2e6;
-                font-weight: 600;
+            .footer {
+                color: #666;
+                margin-top: 30px;
                 font-size: 1.1em;
             }
-            .step:last-child { border-bottom: none; }
-            .footer {
-                color: #6c757d;
-                font-size: 1em;
-                margin-top: 30px;
-                line-height: 1.6;
-            }
             .status {
-                background: linear-gradient(135deg, #25D366, #20c956);
+                background: #25D366;
                 color: white;
                 padding: 15px 30px;
-                border-radius: 30px;
-                display: inline-block;
+                border-radius: 25px;
                 margin: 20px 0;
-                font-weight: 700;
-                font-size: 1.2em;
-                box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+                font-weight: 600;
                 animation: pulse 2s infinite;
             }
             @keyframes pulse {
-                0% { transform: scale(1); box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4); }
-                50% { transform: scale(1.05); box-shadow: 0 8px 25px rgba(37, 211, 102, 0.6); }
-                100% { transform: scale(1); box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4); }
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
             }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="logo">📱</div>
-            <h1 class="title">WhatsApp QR Code</h1>
-            <div class="subtitle">BudBot-IA Connector</div>
-            <div class="version">v3.1 Chromium Fix</div>
+            <h1 class="title">📱 WhatsApp QR</h1>
+            <div class="version">v3.2 NPM + Chromium Fix</div>
             <div class="status">🔄 Aguardando conexão...</div>
             
-            <div class="steps">
-                <div class="step">📱 1. Abra o WhatsApp no seu celular</div>
-                <div class="step">⚙️ 2. Vá em Menu → Dispositivos conectados</div>
-                <div class="step">🔗 3. Toque em "Conectar um dispositivo"</div>
-                <div class="step">📷 4. Aponte a câmera para o código abaixo</div>
-            </div>
-            
             <div class="qr-container">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeData)}" alt="QR Code WhatsApp"/>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(qrCodeData)}" alt="QR Code"/>
             </div>
             
             <div class="footer">
-                <strong>BudBot-IA WhatsApp Connector v3.1</strong><br>
-                Chromium Fix para Render.com<br>
-                Sistema com retry inteligente ativo<br>
-                <small>Atualização automática em 25 segundos</small>
+                <strong>BudBot-IA WhatsApp Connector v3.2</strong><br>
+                NPM Fix Aplicado - Chromium Otimizado<br>
+                <small>Atualização automática em 20s</small>
             </div>
         </div>
         <script>
-            setTimeout(() => location.reload(), 25000);
-            
-            // Reload quando usuário volta à aba
+            setTimeout(() => location.reload(), 20000);
             document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    setTimeout(() => location.reload(), 3000);
-                }
+                if (!document.hidden) setTimeout(() => location.reload(), 2000);
             });
         </script>
     </body>
@@ -535,47 +440,26 @@ app.get('/qr', (req, res) => {
     res.send(html);
   } else if (isReady) {
     res.send(`
-    <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #25D366, #128C7E); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; color: #333; padding: 60px; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.3);">
-            <div style="font-size: 5em; margin-bottom: 30px; animation: bounce 2s infinite;">✅</div>
-            <h1 style="color: #25D366; margin-bottom: 25px; font-size: 2.5em;">WhatsApp Conectado!</h1>
-            <p style="font-size: 1.4em; color: #666; margin-bottom: 20px;">BudBot-IA v3.1 funcionando perfeitamente</p>
-            <div style="background: #25D366; color: white; padding: 15px 30px; border-radius: 25px; display: inline-block; margin: 20px 0; font-weight: 600;">Chromium Fix Aplicado</div>
-            <div style="margin: 40px 0;">
-                <a href="/health" style="background: linear-gradient(135deg, #25D366, #20c956); color: white; padding: 20px 40px; text-decoration: none; border-radius: 30px; font-weight: 700; font-size: 1.2em;">Ver Status Detalhado</a>
-            </div>
+    <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #25D366, #128C7E); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 60px; border-radius: 25px; box-shadow: 0 25px 50px rgba(0,0,0,0.2);">
+            <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+            <h1 style="color: #25D366; margin-bottom: 20px;">WhatsApp Conectado!</h1>
+            <div style="background: #28a745; color: white; padding: 15px 30px; border-radius: 20px; margin: 20px 0;">NPM + Chromium Fix v3.2</div>
+            <p style="font-size: 1.2em; color: #666;">Sistema funcionando perfeitamente</p>
         </div>
-        <style>
-            @keyframes bounce {
-                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                40% { transform: translateY(-10px); }
-                60% { transform: translateY(-5px); }
-            }
-        </style>
     </div>`);
   } else {
     res.send(`
-    <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #ffc107, #fd7e14); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; color: #333; padding: 60px; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.3);">
-            <div style="font-size: 5em; margin-bottom: 30px;">🔧</div>
-            <h1 style="color: #ffc107; font-size: 2.2em; margin-bottom: 20px;">Inicializando v3.1...</h1>
-            <div style="background: #007bff; color: white; padding: 10px 20px; border-radius: 20px; margin: 15px 0; display: inline-block;">Chromium Fix</div>
-            <p style="font-size: 1.3em; margin: 20px 0;">Tentativa: ${initializationAttempts}</p>
-            <p style="color: #666; font-size: 1.1em;">Erros consecutivos: ${consecutiveErrors}</p>
-            <p style="font-size: 1.2em; margin: 25px 0;">${isInitializing ? '🔄 Inicializando Chromium...' : '⏳ Aguardando próxima tentativa...'}</p>
-            <div style="margin: 40px 0;">
-                <div style="width: 80px; height: 80px; border: 8px solid #f3f3f3; border-top: 8px solid #ffc107; border-radius: 50%; animation: spin 1.5s linear infinite; margin: 0 auto;"></div>
-            </div>
-            <p style="font-weight: 700; font-size: 1.2em;">Sistema com Chromium nativo!</p>
-            <p style="font-size: 1em; color: #999; margin-top: 20px;">Timeout estendido: 300s<br>Retry inteligente ativo</p>
+    <div style="text-align: center; padding: 50px; background: linear-gradient(135deg, #ffc107, #fd7e14); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 60px; border-radius: 25px;">
+            <div style="font-size: 4em; margin-bottom: 20px;">🔧</div>
+            <h1 style="color: #ffc107;">Inicializando v3.2...</h1>
+            <div style="background: #007bff; color: white; padding: 10px 20px; border-radius: 15px; margin: 15px 0;">NPM Fix</div>
+            <p>Tentativa: ${initializationAttempts}</p>
+            <p>Erros: ${consecutiveErrors}</p>
+            <p>${isInitializing ? '🔄 Inicializando...' : '⏳ Aguardando...'}</p>
         </div>
-        <style>
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
-        <script>setTimeout(() => location.reload(), 12000);</script>
+        <script>setTimeout(() => location.reload(), 10000);</script>
     </div>`);
   }
 });
@@ -585,8 +469,7 @@ app.post('/send', async (req, res) => {
     if (!isReady) {
       return res.status(503).json({
         success: false,
-        error: 'WhatsApp não conectado',
-        status: 'disconnected'
+        error: 'WhatsApp não conectado'
       });
     }
 
@@ -594,7 +477,7 @@ app.post('/send', async (req, res) => {
     if (!phone || !message) {
       return res.status(400).json({
         success: false,
-        error: 'Campos phone e message são obrigatórios'
+        error: 'Campos phone e message obrigatórios'
       });
     }
 
@@ -604,15 +487,15 @@ app.post('/send', async (req, res) => {
     console.log(`📤 Mensagem enviada para ${phone}`);
     res.json({ 
       success: true, 
-      message: 'Mensagem enviada com sucesso',
+      message: 'Enviado com sucesso',
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('❌ Erro ao enviar mensagem:', error.message);
+    console.error('❌ Erro envio:', error.message);
     res.status(500).json({ 
       success: false, 
-      error: 'Erro interno ao enviar mensagem',
+      error: 'Erro interno',
       details: error.message 
     });
   }
@@ -620,52 +503,27 @@ app.post('/send', async (req, res) => {
 
 app.post('/restart', async (req, res) => {
   try {
-    console.log('🔄 Restart manual solicitado...');
-    
+    console.log('🔄 Restart solicitado...');
     await safeCleanupClient();
-    
     isReady = false;
     qrCodeData = null;
     isInitializing = false;
     consecutiveErrors = 0;
-    
     setTimeout(initializeWhatsApp, 5000);
-    
-    res.json({ 
-      success: true, 
-      message: 'Restart iniciado - aguarde alguns minutos',
-      timestamp: new Date().toISOString()
-    });
+    res.json({ success: true, message: 'Restart iniciado' });
   } catch (error) {
-    console.error('⚠️ Warning durante restart:', error.message);
-    res.json({ 
-      success: true, 
-      message: 'Restart iniciado com warnings - sistema se recuperará automaticamente' 
-    });
+    res.json({ success: true, message: 'Restart iniciado com warnings' });
   }
 });
 
 app.get('/', (req, res) => {
-  const chromiumPath = findChromiumPath();
-  
   res.json({
     service: 'BudBot WhatsApp Connector',
-    version: '3.1.0-chromium-fix',
+    version: '3.2.0-npm-chromium-fix',
     status: isReady ? 'connected' : 'initializing',
     attempts: initializationAttempts,
     consecutive_errors: consecutiveErrors,
-    uptime: process.uptime(),
-    chromium: {
-      path: chromiumPath || 'default',
-      available: !!chromiumPath
-    },
-    features: [
-      'chromium-fix',
-      'puppeteer-core',
-      'extended-timeout',
-      'adaptive-retry',
-      'system-chromium'
-    ],
+    fixes_applied: ['npm-install-fix', 'chromium-flags', 'safe-cleanup'],
     endpoints: {
       health: '/health',
       status: '/status', 
@@ -676,60 +534,41 @@ app.get('/', (req, res) => {
   });
 });
 
-// Middleware de erro
-app.use((error, req, res, next) => {
-  console.error('❌ API Error:', error);
-  res.status(500).json({ 
-    success: false, 
-    error: 'Erro interno do servidor',
-    timestamp: new Date().toISOString() 
-  });
-});
-
 // Inicializar servidor
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🌐 Servidor rodando na porta ${PORT}`);
-  console.log(`🔗 Endpoints disponíveis:`);
-  console.log(`   Health Check: /health`);
-  console.log(`   QR Code Interface: /qr`);
-  console.log(`   Status: /status`);
-  console.log(`   Send Message: POST /send`);
-  console.log(`   Restart: POST /restart`);
+  console.log(`🌐 Servidor na porta ${PORT}`);
+  console.log(`🔧 NPM Fix aplicado: npm install --omit=dev`);
+  console.log(`🔍 Chromium: ${findChromiumPath() || 'padrão'}`);
   
-  const chromiumPath = findChromiumPath();
-  console.log(`🔍 Chromium detectado: ${chromiumPath || 'padrão Puppeteer'}`);
-  
-  // Aguardar servidor stabilizar e inicializar WhatsApp
   setTimeout(() => {
-    console.log('🚀 Iniciando WhatsApp com Chromium Fix...');
+    console.log('🚀 Iniciando WhatsApp com todas as correções...');
     initializeWhatsApp();
   }, 8000);
 });
 
-// Tratamento seguro de sinais
+// Tratamento de sinais com sua correção
 process.on('SIGINT', async () => {
-  console.log('🛑 SIGINT - encerrando gracefully...');
+  console.log('🛑 SIGINT - encerrando...');
   await safeCleanupClient();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🛑 SIGTERM - encerrando gracefully...');
+  console.log('🛑 SIGTERM - encerrando...');
   await safeCleanupClient();
   process.exit(0);
 });
 
+// Error handling com verificação client.pupPage conforme sua correção
 process.on('unhandledRejection', async (reason, promise) => {
   console.error('❌ Unhandled Rejection:', reason);
   
-  // Verificar se é erro relacionado ao client e Chromium
-  if (client && client.pupPage && reason.message && 
-      (reason.message.includes('close') || reason.message.includes('Protocol error'))) {
+  if (client && client.pupPage && reason.message && reason.message.includes('close')) {
     try {
       await safeCleanupClient();
-      console.log('🧹 Cliente limpo após unhandled rejection (Chromium)');
+      console.log('🧹 Cliente limpo após unhandled rejection');
     } catch (cleanupError) {
-      console.log('⚠️ Erro durante limpeza automática:', cleanupError.message);
+      console.log('⚠️ Erro limpeza:', cleanupError.message);
     }
   }
 });
@@ -737,13 +576,10 @@ process.on('unhandledRejection', async (reason, promise) => {
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error.message);
   
-  // Se erro relacionado ao Puppeteer/Chromium, limpar cliente
-  if (error.message.includes('Protocol error') || 
-      error.message.includes('Target closed') ||
-      error.message.includes('Session closed')) {
+  if (error.message.includes('Protocol error') || error.message.includes('Target closed')) {
     setTimeout(async () => {
       await safeCleanupClient();
-      console.log('🧹 Cliente limpo após uncaught exception (Chromium)');
+      console.log('🧹 Cliente limpo após uncaught exception');
     }, 2000);
   }
 });
