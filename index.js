@@ -459,11 +459,18 @@ async function notifyBackend(event, data, attempts = 1) {
 function initializeWhatsApp() {
     logger.info('🚀 Initializing BudBot WhatsApp Connector v5.0...');
     
+    // Reset state
+    clientReady = false;
+    qrCodeGenerated = false;
+    lastQrCode = null;
+    
     // Destroy existing client if any
     if (whatsappClient) {
+        logger.info('🧹 Cleaning up existing WhatsApp client...');
         whatsappClient.destroy().catch(err => 
             logger.warn(`Warning during client cleanup: ${err.message}`)
         );
+        whatsappClient = null;
     }
 
     const clientOptions = {
@@ -499,6 +506,7 @@ function initializeWhatsApp() {
         logger.info(`🔧 Using Puppeteer executable: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
     }
 
+    logger.info('🔧 Creating new WhatsApp client...');
     whatsappClient = new Client(clientOptions);
 
     // QR Code generation
@@ -522,6 +530,19 @@ function initializeWhatsApp() {
         } catch (error) {
             logger.error(`Failed to notify backend about QR: ${error.message}`);
         }
+    });
+
+    // Initialize client
+    logger.info('⚡ Starting WhatsApp client initialization...');
+    whatsappClient.initialize().then(() => {
+        logger.info('✅ WhatsApp client initialization started successfully');
+    }).catch(error => {
+        logger.error(`❌ Failed to initialize WhatsApp client: ${error.message}`);
+        // Retry after 10 seconds
+        setTimeout(() => {
+            logger.info('🔄 Retrying WhatsApp initialization...');
+            initializeWhatsApp();
+        }, 10000);
     });
 
     // Client ready
@@ -686,8 +707,25 @@ app.listen(PORT, '0.0.0.0', () => {
     logger.info(`📁 Session path: ${SESSION_PATH}`);
     logger.info(`🔄 Max retries: ${MAX_RETRIES}`);
     
-    // Initialize WhatsApp connection
+    // Initialize WhatsApp connection immediately
+    logger.info('🚀 Starting WhatsApp initialization...');
     initializeWhatsApp();
+    
+    // Force initialization if not started after 30 seconds
+    setTimeout(() => {
+        if (!clientReady && !qrCodeGenerated) {
+            logger.warn('⚠️ WhatsApp not initialized after 30s, forcing restart...');
+            initializeWhatsApp();
+        }
+    }, 30000);
+    
+    // Second attempt after 60 seconds
+    setTimeout(() => {
+        if (!clientReady && !qrCodeGenerated) {
+            logger.warn('⚠️ WhatsApp not initialized after 60s, final attempt...');
+            initializeWhatsApp();
+        }
+    }, 60000);
 });
 
 logger.info('🚀 BudBot WhatsApp Connector v5.0 - Production Ready Edition started');
