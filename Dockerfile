@@ -61,7 +61,7 @@ COPY package*.json ./
 RUN npm config set cache /tmp/.npm-cache --global
 
 # Instalar dependências Node.js
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN npm install --omit=dev --no-audit --no-fund
 
 # Configurar Puppeteer para usar Chromium instalado
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
