@@ -456,7 +456,7 @@ async function notifyBackend(event, data, attempts = 1) {
 /**
  * Initialize WhatsApp Client with advanced configuration
  */
-function initializeWhatsApp() {
+async function initializeWhatsApp() {
     logger.info('🚀 Initializing BudBot WhatsApp Connector v5.0...');
     
     // Reset state
@@ -467,10 +467,26 @@ function initializeWhatsApp() {
     // Destroy existing client if any
     if (whatsappClient) {
         logger.info('🧹 Cleaning up existing WhatsApp client...');
-        whatsappClient.destroy().catch(err => 
-            logger.warn(`Warning during client cleanup: ${err.message}`)
-        );
+        try {
+            await whatsappClient.destroy();
+            logger.info('✅ Previous client destroyed successfully');
+        } catch (err) {
+            logger.warn(`Warning during client cleanup: ${err.message}`);
+        }
         whatsappClient = null;
+    }
+    
+    // Clean up session lock files
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const sessionLockPath = path.join(SESSION_PATH, 'session-budbot-session', 'SingletonLock');
+        if (fs.existsSync(sessionLockPath)) {
+            fs.unlinkSync(sessionLockPath);
+            logger.info('🗑️ Removed existing session lock file');
+        }
+    } catch (error) {
+        logger.warn(`Could not clean session lock: ${error.message}`);
     }
 
     const clientOptions = {
@@ -495,8 +511,18 @@ function initializeWhatsApp() {
                 '--disable-features=TranslateUI',
                 '--disable-extensions',
                 '--disable-plugins',
-                '--disable-images'
+                '--disable-images',
+                '--user-data-dir=/tmp/chrome-user-data-' + Date.now()
             ]
+        }
+    };
+
+    // Fix session path for unique instance
+    const uniqueSession = `session-budbot-${Date.now()}`;
+    clientOptions.authStrategy = new LocalAuth({
+        clientId: uniqueSession,
+        dataPath: SESSION_PATH
+    });
         }
     };
 
@@ -534,16 +560,17 @@ function initializeWhatsApp() {
 
     // Initialize client
     logger.info('⚡ Starting WhatsApp client initialization...');
-    whatsappClient.initialize().then(() => {
+    try {
+        await whatsappClient.initialize();
         logger.info('✅ WhatsApp client initialization started successfully');
-    }).catch(error => {
+    } catch (error) {
         logger.error(`❌ Failed to initialize WhatsApp client: ${error.message}`);
         // Retry after 10 seconds
         setTimeout(() => {
             logger.info('🔄 Retrying WhatsApp initialization...');
             initializeWhatsApp();
         }, 10000);
-    });
+    }
 
     // Client ready
     whatsappClient.on('ready', async () => {
@@ -701,31 +728,33 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Start Express server and initialize WhatsApp
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
     logger.info(`🌐 BudBot WhatsApp Connector v5.0 server running on port ${PORT}`);
     logger.info(`🔗 Backend URL: ${BACKEND_URL}`);
     logger.info(`📁 Session path: ${SESSION_PATH}`);
     logger.info(`🔄 Max retries: ${MAX_RETRIES}`);
     
+    // Clear any existing session locks first
+    const fs = require('fs');
+    const path = require('path');
+    try {
+        const lockFiles = [
+            path.join(SESSION_PATH, 'session-budbot-session', 'SingletonLock'),
+            '/tmp/chrome-user-data*/SingletonLock'
+        ];
+        for (const lockFile of lockFiles) {
+            if (fs.existsSync(lockFile)) {
+                fs.unlinkSync(lockFile);
+                logger.info('🗑️ Removed session lock file');
+            }
+        }
+    } catch (error) {
+        logger.warn(`Lock cleanup warning: ${error.message}`);
+    }
+    
     // Initialize WhatsApp connection immediately
     logger.info('🚀 Starting WhatsApp initialization...');
-    initializeWhatsApp();
-    
-    // Force initialization if not started after 30 seconds
-    setTimeout(() => {
-        if (!clientReady && !qrCodeGenerated) {
-            logger.warn('⚠️ WhatsApp not initialized after 30s, forcing restart...');
-            initializeWhatsApp();
-        }
-    }, 30000);
-    
-    // Second attempt after 60 seconds
-    setTimeout(() => {
-        if (!clientReady && !qrCodeGenerated) {
-            logger.warn('⚠️ WhatsApp not initialized after 60s, final attempt...');
-            initializeWhatsApp();
-        }
-    }, 60000);
+    await initializeWhatsApp();
 });
 
 logger.info('🚀 BudBot WhatsApp Connector v5.0 - Production Ready Edition started');
