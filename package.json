@@ -1,7 +1,7 @@
 {
   "name": "budbot-whatsapp-connector",
-  "version": "4.4.0",
-  "description": "WhatsApp Connector for BudBot-IA - Render.com optimized",
+  "version": "5.0.0",
+  "description": "BudBot WhatsApp Connector v5.0 - Complete Integration with Backend",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -13,7 +13,9 @@
     "bot",
     "connector",
     "render",
-    "budbot"
+    "budbot",
+    "crm",
+    "integration"
   ],
   "author": "BudBot Team",
   "license": "MIT",
@@ -32,5 +34,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/atisproject/budbot-whatsapp-connector"
+  },
+  "homepage": "https://github.com/atisproject/budbot-whatsapp-connector#readme",
+  "bugs": {
+    "url": "https://github.com/atisproject/budbot-whatsapp-connector/issues"
   }
 }

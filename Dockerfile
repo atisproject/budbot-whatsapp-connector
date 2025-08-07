@@ -1,7 +1,14 @@
-# BudBot WhatsApp Connector v4.4.0 - Render.com Optimized Dockerfile
+# BudBot WhatsApp Connector v5.0 - Production Ready Dockerfile
+# Optimized for Render.com deployment with full Chromium support
+
 FROM node:18-slim
 
-# Install system dependencies including Chromium
+# Set labels for maintainability
+LABEL version="5.0.0"
+LABEL description="BudBot WhatsApp Connector - Complete Integration"
+LABEL maintainer="BudBot Team"
+
+# Install system dependencies including Chromium and debugging tools
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -23,34 +30,51 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libxtst6 \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    ca-certificates \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/*
 
-# Set working directory
+# Create app directory with proper permissions
 WORKDIR /app
 
-# Copy package files
+# Create non-root user for security
+RUN groupadd -r budbot && useradd -r -g budbot -d /app -s /sbin/nologin budbot
+
+# Copy package files first for better Docker layer caching
 COPY package*.json ./
 
-# Install dependencies using npm install for better compatibility
-RUN npm install --omit=dev --no-audit --no-fund
+# Install Node.js dependencies
+# Using npm install for better compatibility with Render.com
+RUN npm install --omit=dev --no-audit --no-fund --verbose \
+    && npm cache clean --force
 
 # Copy application files
 COPY . .
 
-# Create directory for WhatsApp sessions
-RUN mkdir -p wweb_session && chmod 755 wweb_session
+# Create necessary directories and set permissions
+RUN mkdir -p wweb_session logs \
+    && chown -R budbot:budbot /app \
+    && chmod -R 755 /app
 
-# Set environment variables for Puppeteer
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV NODE_ENV=production
+# Set environment variables for Puppeteer and Node.js
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    NODE_ENV=production \
+    NODE_OPTIONS="--max-old-space-size=512" \
+    CHROME_BIN=/usr/bin/chromium \
+    DISPLAY=:99
 
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check with comprehensive validation
+HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Start application
+# Switch to non-root user
+USER budbot
+
+# Start application with proper signal handling
 CMD ["node", "index.js"]
