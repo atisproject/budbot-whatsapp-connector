@@ -21,7 +21,7 @@ require('dotenv').config();
 
 // Environment variables with defaults
 const PORT = process.env.PORT || 3000;
-const BACKEND_URL = process.env.BACKEND_URL || 'https://budbot-ia.onrender.com';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://www.agentbot-ia.shop';
 const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN || 'budbot_webhook_secret_2025';
 const SESSION_PATH = process.env.WWEB_SESSION_PATH || './wweb_session';
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
@@ -70,6 +70,94 @@ let connectionStats = {
     lastMessage: null,
     reconnections: 0
 };
+
+// Root endpoint for web interface
+app.get('/', (req, res) => {
+    const uptime = Math.floor((new Date() - connectionStats.startTime) / 1000);
+    const status = clientReady ? '🟢 Connected' : qrCodeGenerated ? '🟡 Waiting for QR scan' : '🔄 Initializing';
+    
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>BudBot WhatsApp Connector v5.0</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+                .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .status { padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; font-weight: bold; }
+                .connected { background: #d4edda; color: #155724; }
+                .waiting { background: #fff3cd; color: #856404; }
+                .initializing { background: #d1ecf1; color: #0c5460; }
+                .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+                .stat { background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; }
+                .endpoints { background: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .endpoint { margin: 5px 0; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+                h1 { color: #333; text-align: center; }
+                h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🤖 BudBot WhatsApp Connector v5.0</h1>
+                
+                <div class="status ${clientReady ? 'connected' : qrCodeGenerated ? 'waiting' : 'initializing'}">
+                    ${status}
+                </div>
+                
+                <div class="stats">
+                    <div class="stat">
+                        <h3>Uptime</h3>
+                        <p>${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${uptime % 60}s</p>
+                    </div>
+                    <div class="stat">
+                        <h3>Messages Processed</h3>
+                        <p>${connectionStats.totalMessages}</p>
+                    </div>
+                    <div class="stat">
+                        <h3>Reconnections</h3>
+                        <p>${connectionStats.reconnections}</p>
+                    </div>
+                    <div class="stat">
+                        <h3>Backend</h3>
+                        <p>Connected</p>
+                    </div>
+                </div>
+                
+                <h2>📡 Endpoints</h2>
+                <div class="endpoints">
+                    <div class="endpoint"><a href="/health">GET /health</a> - Health check with detailed status</div>
+                    <div class="endpoint"><a href="/status">GET /status</a> - Complete system status</div>
+                    <div class="endpoint"><a href="/qr">GET /qr</a> - WhatsApp QR code (when available)</div>
+                </div>
+                
+                <h2>🔗 Backend Integration</h2>
+                <p><strong>Backend URL:</strong> <a href="${BACKEND_URL}" target="_blank">${BACKEND_URL}</a></p>
+                <p><strong>Webhook Endpoint:</strong> <code>/api/whatsapp/connector</code></p>
+                
+                <h2>📱 WhatsApp Status</h2>
+                <p>${clientReady ? '✅ WhatsApp Web is connected and ready!' : qrCodeGenerated ? '📱 Scan the QR code to connect WhatsApp' : '🔄 Initializing WhatsApp Web client...'}</p>
+                
+                ${qrCodeGenerated && !clientReady ? '<p><a href="/qr">Click here to access QR Code</a></p>' : ''}
+                
+                <hr>
+                <p style="text-align: center; color: #666; font-size: 14px;">
+                    BudBot WhatsApp Connector v5.0 - Production Ready<br>
+                    Last updated: ${new Date().toLocaleString()}
+                </p>
+            </div>
+            
+            <script>
+                // Auto-refresh every 30 seconds
+                setTimeout(() => location.reload(), 30000);
+            </script>
+        </body>
+        </html>
+    `);
+});
 
 // Health check endpoint with detailed status
 app.get('/health', (req, res) => {
