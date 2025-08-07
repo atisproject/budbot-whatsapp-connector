@@ -191,7 +191,7 @@ async function notifyBackend(event, data) {
             token: WEBHOOK_TOKEN
         };
 
-        const response = await axios.post(`${BACKEND_URL}/api/whatsapp/webhook`, payload, {
+        const response = await axios.post(`${BACKEND_URL}/api/whatsapp/connector`, payload, {
             timeout: 10000,
             headers: {
                 'Content-Type': 'application/json',

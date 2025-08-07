@@ -1,0 +1,61 @@
+# Dependências Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+whatsapp-connector.log
+
+# Sessões do WhatsApp Web
+wweb_session/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Cache do Puppeteer
+.puppeteer_cache/
+
+# Arquivos temporários
+*.tmp
+*.temp
+.cache/
+
+# Arquivos de sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+build/
+dist/
+
+# Coverage
+coverage/
+.nyc_output
+
+# Backup
+*.backup
+*.bak
