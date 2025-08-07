@@ -199,18 +199,211 @@ app.get('/status', (req, res) => {
 // QR Code endpoint for web display
 app.get('/qr', (req, res) => {
     if (qrCodeGenerated && lastQrCode) {
-        res.json({
-            status: 'available',
-            qr_code: lastQrCode,
-            message: 'Scan this QR code with WhatsApp',
-            instructions: 'Open WhatsApp > Menu (3 dots) > Linked devices > Link a device'
-        });
+        // Return HTML page with QR code display
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WhatsApp QR Code - BudBot Connector</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        max-width: 600px; 
+                        margin: 0 auto; 
+                        padding: 20px; 
+                        background: #f5f5f5; 
+                        text-align: center; 
+                    }
+                    .container { 
+                        background: white; 
+                        padding: 30px; 
+                        border-radius: 15px; 
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+                    }
+                    .qr-container { 
+                        background: white; 
+                        padding: 20px; 
+                        border-radius: 10px; 
+                        margin: 20px 0; 
+                        border: 2px solid #25D366; 
+                    }
+                    .qr-code { 
+                        font-family: monospace; 
+                        font-size: 10px; 
+                        line-height: 10px; 
+                        white-space: pre; 
+                        background: white; 
+                        padding: 10px; 
+                        margin: 10px 0; 
+                    }
+                    .instructions { 
+                        background: #e8f5e8; 
+                        padding: 20px; 
+                        border-radius: 10px; 
+                        margin: 20px 0; 
+                        border-left: 4px solid #25D366; 
+                    }
+                    .steps { 
+                        text-align: left; 
+                        margin: 15px 0; 
+                    }
+                    .step { 
+                        margin: 10px 0; 
+                        padding: 5px 0; 
+                    }
+                    h1 { 
+                        color: #25D366; 
+                        margin-bottom: 10px; 
+                    }
+                    .whatsapp-logo { 
+                        color: #25D366; 
+                        font-size: 24px; 
+                    }
+                    .refresh-button { 
+                        background: #25D366; 
+                        color: white; 
+                        border: none; 
+                        padding: 12px 24px; 
+                        border-radius: 25px; 
+                        cursor: pointer; 
+                        font-size: 16px; 
+                        margin: 10px; 
+                    }
+                    .refresh-button:hover { 
+                        background: #20b356; 
+                    }
+                    .status { 
+                        background: #fff3cd; 
+                        color: #856404; 
+                        padding: 15px; 
+                        border-radius: 5px; 
+                        margin: 20px 0; 
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1><span class="whatsapp-logo">📱</span> WhatsApp QR Code</h1>
+                    <p>Conecte seu WhatsApp ao BudBot Connector</p>
+                    
+                    <div class="qr-container">
+                        <div class="qr-code">${lastQrCode}</div>
+                    </div>
+                    
+                    <div class="instructions">
+                        <h3>📋 Como conectar:</h3>
+                        <div class="steps">
+                            <div class="step">1️⃣ Abra o WhatsApp no seu celular</div>
+                            <div class="step">2️⃣ Toque no menu (3 pontos) no canto superior direito</div>
+                            <div class="step">3️⃣ Selecione "Dispositivos conectados"</div>
+                            <div class="step">4️⃣ Toque em "Conectar um dispositivo"</div>
+                            <div class="step">5️⃣ Escaneie o QR Code acima com a câmera</div>
+                        </div>
+                    </div>
+                    
+                    <div class="status">
+                        ⏰ Este QR Code expira em alguns minutos. Se não funcionar, atualize a página.
+                    </div>
+                    
+                    <button class="refresh-button" onclick="location.reload()">🔄 Atualizar QR Code</button>
+                    <button class="refresh-button" onclick="window.location.href='/'">🏠 Voltar ao Status</button>
+                    
+                    <hr style="margin: 30px 0;">
+                    <p style="color: #666; font-size: 14px;">
+                        BudBot WhatsApp Connector v5.0<br>
+                        QR Code gerado em: ${new Date().toLocaleString()}
+                    </p>
+                </div>
+                
+                <script>
+                    // Auto-refresh every 2 minutes
+                    setTimeout(() => location.reload(), 120000);
+                    
+                    // Show countdown
+                    let timeLeft = 120;
+                    const countdown = setInterval(() => {
+                        timeLeft--;
+                        if (timeLeft <= 0) {
+                            clearInterval(countdown);
+                            location.reload();
+                        }
+                    }, 1000);
+                </script>
+            </body>
+            </html>
+        `);
+    } else if (clientReady) {
+        // WhatsApp is already connected
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WhatsApp Connected - BudBot Connector</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; text-align: center; }
+                    .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+                    .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                    .button { background: #25D366; color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 16px; margin: 10px; text-decoration: none; display: inline-block; }
+                    h1 { color: #25D366; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>✅ WhatsApp Conectado!</h1>
+                    <div class="success">
+                        <h3>🎉 Conexão estabelecida com sucesso!</h3>
+                        <p>Seu WhatsApp está conectado e funcionando perfeitamente.</p>
+                        <p>O BudBot Connector está processando mensagens automaticamente.</p>
+                    </div>
+                    <a href="/" class="button">🏠 Voltar ao Status</a>
+                    <a href="/health" class="button">📊 Ver Detalhes</a>
+                </div>
+            </body>
+            </html>
+        `);
     } else {
-        res.json({
-            status: 'unavailable',
-            message: 'QR code not available. Client may be connected or initializing.',
-            client_ready: clientReady
-        });
+        // QR not available yet
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Aguardando QR Code - BudBot Connector</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; text-align: center; }
+                    .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+                    .waiting { background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                    .button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 16px; margin: 10px; text-decoration: none; display: inline-block; }
+                    h1 { color: #007bff; }
+                    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
+                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🔄 Inicializando WhatsApp</h1>
+                    <div class="spinner"></div>
+                    <div class="waiting">
+                        <h3>⏳ Aguarde um momento...</h3>
+                        <p>O WhatsApp Connector está inicializando e gerando o QR Code.</p>
+                        <p>Este processo pode levar até 60 segundos.</p>
+                    </div>
+                    <a href="/" class="button">🏠 Voltar ao Status</a>
+                    <button class="button" onclick="location.reload()">🔄 Atualizar</button>
+                </div>
+                
+                <script>
+                    // Auto-refresh every 10 seconds
+                    setTimeout(() => location.reload(), 10000);
+                </script>
+            </body>
+            </html>
+        `);
     }
 });
 
