@@ -31,11 +31,13 @@ async function initWhatsApp() {
         
         whatsappClient = new Client({
             authStrategy: new LocalAuth({
-                clientId: 'budbot-simple'
+                clientId: 'budbot-render',
+                dataPath: './wweb_session'
             }),
             puppeteer: {
                 headless: true,
                 executablePath: '/usr/bin/chromium',
+                timeout: 60000,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -45,7 +47,18 @@ async function initWhatsApp() {
                     '--disable-extensions',
                     '--disable-plugins',
                     '--disable-web-security',
-                    '--no-first-run'
+                    '--no-first-run',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
+                    '--memory-pressure-off',
+                    '--max_old_space_size=512',
+                    '--disable-crash-reporter',
+                    '--no-default-browser-check',
+                    '--disable-notifications',
+                    '--user-data-dir=/tmp/chrome-user-data'
                 ]
             }
         });
@@ -77,7 +90,14 @@ async function initWhatsApp() {
         });
 
         console.log('🔄 Initializing WhatsApp client...');
-        await whatsappClient.initialize();
+        
+        // Add timeout for initialization
+        const initPromise = whatsappClient.initialize();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Initialization timeout after 120 seconds')), 120000)
+        );
+        
+        await Promise.race([initPromise, timeoutPromise]);
         console.log('✅ Initialization completed');
         
     } catch (error) {
