@@ -16,48 +16,89 @@ const app = express();
 console.log('🚀 Starting BudBot WhatsApp Connector (SIMPLE VERSION)...');
 
 // Initialize WhatsApp immediately
-function initWhatsApp() {
-    console.log('⚡ Creating WhatsApp client...');
-    
-    whatsappClient = new Client({
-        authStrategy: new LocalAuth({
-            clientId: 'budbot-simple'
-        }),
-        puppeteer: {
-            headless: true,
-            executablePath: '/usr/bin/chromium',
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--single-process'
-            ]
-        }
-    });
-
-    whatsappClient.on('qr', (qr) => {
-        console.log('📱 QR Code generated!');
-        qrCodeGenerated = true;
-        lastQrCode = qr;
+async function initWhatsApp() {
+    try {
+        console.log('⚡ Creating WhatsApp client...');
+        console.log('🔧 Chrome path: /usr/bin/chromium');
         
-        console.log('\n=== SCAN THIS QR CODE ===\n');
-        qrcode.generate(qr, { small: true });
-        console.log('\n========================\n');
-    });
+        // Test if Chrome exists
+        const fs = require('fs');
+        if (!fs.existsSync('/usr/bin/chromium')) {
+            console.log('❌ Chrome not found at /usr/bin/chromium');
+            return;
+        }
+        console.log('✅ Chrome found');
+        
+        whatsappClient = new Client({
+            authStrategy: new LocalAuth({
+                clientId: 'budbot-simple'
+            }),
+            puppeteer: {
+                headless: true,
+                executablePath: '/usr/bin/chromium',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--single-process',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-web-security',
+                    '--no-first-run'
+                ]
+            }
+        });
 
-    whatsappClient.on('ready', () => {
-        console.log('✅ WhatsApp ready!');
-    });
+        whatsappClient.on('loading_screen', (percent, message) => {
+            console.log(`🔄 Loading: ${percent}% - ${message}`);
+        });
 
-    whatsappClient.on('auth_failure', (msg) => {
-        console.log('❌ Auth failed:', msg);
-    });
+        whatsappClient.on('qr', (qr) => {
+            console.log('📱 QR Code generated!');
+            qrCodeGenerated = true;
+            lastQrCode = qr;
+            
+            console.log('\n=== SCAN THIS QR CODE ===\n');
+            qrcode.generate(qr, { small: true });
+            console.log('\n========================\n');
+        });
 
-    console.log('🔄 Initializing...');
-    whatsappClient.initialize().catch(error => {
-        console.log('❌ Error:', error.message);
-    });
+        whatsappClient.on('ready', () => {
+            console.log('✅ WhatsApp ready!');
+        });
+
+        whatsappClient.on('auth_failure', (msg) => {
+            console.log('❌ Auth failed:', msg);
+        });
+
+        whatsappClient.on('disconnected', (reason) => {
+            console.log(`🔌 Disconnected: ${reason}`);
+        });
+
+        console.log('🔄 Initializing WhatsApp client...');
+        await whatsappClient.initialize();
+        console.log('✅ Initialization completed');
+        
+    } catch (error) {
+        console.log('❌ Fatal error:', error.message);
+        console.log('📋 Stack:', error.stack);
+        
+        // Try simple Puppeteer test
+        console.log('🧪 Testing Puppeteer directly...');
+        const puppeteer = require('puppeteer');
+        try {
+            const browser = await puppeteer.launch({
+                headless: true,
+                executablePath: '/usr/bin/chromium',
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            console.log('✅ Puppeteer can launch Chrome');
+            await browser.close();
+        } catch (puppeteerError) {
+            console.log('❌ Puppeteer test failed:', puppeteerError.message);
+        }
+    }
 }
 
 // Routes
